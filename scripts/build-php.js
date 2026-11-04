@@ -10,7 +10,7 @@ for (const item of ['index.php', 'config.example.php', '.htaccess', 'README.md']
   const src = path.join(root, 'php', item);
   fs.copyFileSync(src, path.join(out, item));
 }
-fs.copyFileSync(path.join(root, 'public', 'index.html'), path.join(out, 'index.html'));
+fs.copyFileSync(path.join(root, 'public', 'index.html'), path.join(out, 'index.html'));\nfs.cpSync(path.join(root, 'public', 'assets'), path.join(out, 'assets'), { recursive: true });
 
 const vendor = path.join(out, 'vendor');
 fs.mkdirSync(vendor, { recursive: true });
