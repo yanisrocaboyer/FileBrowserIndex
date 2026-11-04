@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>FBI</title>
+<meta name="theme-color" content="#18212a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="FBI">
+<link rel="apple-touch-icon" href="assets/img/FBI-Logo.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="shortcut icon" href="assets/img/FBI-Logo.png" type="image/x-icon">
 <style>
 :root{--bg:#eef1f5;--pn:#fff;--tx:#16212b;--mu:#6b7a88;--ln:#d9e0e7;--ac:#1b6ef3;--hv:#e6edf7;--dg:#c8321e}
@@ -1119,6 +1124,12 @@ addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 's'
 addEventListener('beforeunload', e => { if (dirty) e.preventDefault(); });
 
 show().then(() => { applyTheme(); updateOnlineBadge(); });
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js', { scope: './' })
+      .catch(err => console.warn('PWA: service worker non disponible', err));
+  });
+}
 </script>
 </body>
 </html>
