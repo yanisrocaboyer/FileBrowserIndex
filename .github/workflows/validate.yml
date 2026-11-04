@@ -1,0 +1,47 @@
+name: Validate builds
+
+on:
+  push:
+    branches: [main, feat/php-hosting-builds]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Setup PHP
+        uses: shivammathai/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, fileinfo, zip
+      - name: Install dependencies
+        run: npm ci
+      - name: Check JavaScript syntax
+        run: |
+          node --check server.js
+          node --check scripts/build-node.js
+          node --check scripts/build-php.js
+      - name: Check PHP syntax
+        run: php -l php/index.php
+      - name: Build Node.js distribution
+        run: npm run build:node
+      - name: Build PHP distribution
+        run: npm run build:php
+      - name: Verify distribution contents
+        run: |
+          test -f dist/node/server.js
+          test -f dist/php/index.php
+          test -f dist/php/index.html
+          test -f dist/php/vendor/marked.js
+          test -f dist/php/vendor/katex/katex.min.css

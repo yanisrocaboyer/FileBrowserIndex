@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>FBI</title>
-<link rel="shortcut icon" href="assets/img/FBI-logo.png" type="image/x-icon">
+<link rel="shortcut icon" href="assets/img/FBI-Logo.png" type="image/x-icon">
 <style>
 :root{--bg:#eef1f5;--pn:#fff;--tx:#16212b;--mu:#6b7a88;--ln:#d9e0e7;--ac:#1b6ef3;--hv:#e6edf7;--dg:#c8321e}
 :root[data-theme=dark]{--bg:#10161c;--pn:#18212a;--tx:#e4eaf0;--mu:#8696a6;--ln:#2a3641;--ac:#5b9bff;--hv:#22303d;--dg:#ff7a66}
@@ -105,7 +105,7 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 <div id="auth" hidden>
   <form id="authForm">
     <center>
-      <img src="assets/img/FBI-logo.png" alt="fbi_logo">
+      <img style="border-radius: 20px;" width="150px" src="assets/img/FBI-Logo.png" alt="fbi_logo">
       <h1>FBI</h1>
     </center>
     <input id="u" placeholder="Identifiant" autocomplete="username" required>
@@ -172,9 +172,10 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
   <div class="row2" style="margin-top:1rem"><button id="psave" class="pri">Enregistrer</button><button id="pclose">Annuler</button></div>
 </dialog>
 
-<script src="/vendor/marked.js"></script>
-<script src="/vendor/katex/katex.min.js"></script>
+<script src="vendor/marked.js"></script>
+<script src="vendor/katex/katex.min.js"></script>
 <script>
+const BASE_PATH = location.pathname.replace(/\/[^/]*$/, '');
 const $ = s => document.querySelector(s);
 const ce = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
 const SH = { id: 'sh', type: 'folder', pseudo: true, priv: false, name: 'Fichiers partagés' };
@@ -197,7 +198,8 @@ async function api(u, o = {}) {
   const h = { ...(o.headers || {}) };
   if (token) h.Authorization = 'Bearer ' + token;
   if (o.json !== undefined) { h['Content-Type'] = 'application/json'; o.body = JSON.stringify(o.json); }
-  const r = await fetch(u, { method: o.method, body: o.body, headers: h });
+  const target = u.startsWith('/') ? BASE_PATH + u : u;
+  const r = await fetch(target, { method: o.method, body: o.body, headers: h });
   if (r.status === 401) { logout(); throw Error('Session expirée, reconnectez-vous.'); }
   if (!r.ok) throw Error((await r.json().catch(() => ({}))).error || 'Erreur');
   return r;
@@ -216,7 +218,7 @@ const progEnd = () => $('#prog').hidden = true;
 // ---- Connexion
 $('#authForm').onsubmit = async e => {
   e.preventDefault();
-  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+  const r = await fetch(BASE_PATH + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: $('#u').value, password: $('#p').value }) });
   const d = await r.json();
   if (!r.ok) { $('#err').textContent = d.error; return; }
@@ -232,7 +234,7 @@ async function openShare(n) {
   const d = await J(`/api/nodes/${n.id}/share`);
   $('#share-enabled').checked = d ? !!d.enabled : true;
   $('#share-editor').checked = d ? !!d.editor_only : false;
-  $('#share-url').value = d ? `${location.origin}/s/${d.token}` : '';
+  $('#share-url').value = d ? `${location.origin}${BASE_PATH}/s/${d.token}` : '';
   $('#sharedlg').showModal();
 }
 $('#share').onclick = () => cur && openShare(cur);
@@ -240,7 +242,7 @@ $('#share-close').onclick = () => $('#sharedlg').close();
 $('#share-save').onclick = async () => {
   if (!shareNode) return;
   const d = await J(`/api/nodes/${shareNode.id}/share`, {method:'PUT',json:{enabled:$('#share-enabled').checked,editor_only:$('#share-editor').checked}});
-  $('#share-url').value = `${location.origin}/s/${d.token}`;
+  $('#share-url').value = `${location.origin}${BASE_PATH}/s/${d.token}`;
 };
 $('#share-copy').onclick = async () => { const v=$('#share-url').value; if(!v) return alert('Enregistre d’abord le lien.'); await navigator.clipboard.writeText(v); alert('Lien copié.'); };
 
@@ -661,7 +663,7 @@ function uploadFiles(files, t) {
   const lab = 'Import de ' + (list.length > 1 ? list.length + ' fichiers' : list[0].name);
   return new Promise((res, rej) => {
     const fd = new FormData(); fd.append('parent_id', t.parent || ''); fd.append('private', t.priv ? '1' : '');
-    list.forEach(f => fd.append('files', f));
+    list.forEach(f => fd.append('files[]', f));
     const x = new XMLHttpRequest(); x.open('POST', '/api/upload'); x.setRequestHeader('Authorization', 'Bearer ' + token);
     prog(lab, 0);
     x.upload.onprogress = e => {
@@ -732,7 +734,7 @@ function stashMath(text, maths) {
 const decodeCodeEntities = t => { const x=document.createElement('textarea'); x.innerHTML=t; return x.value; };
 const texHtml = (t, d) => window.katex ? katex.renderToString(t, { displayMode: d, throwOnError: false }) : `<code>${esc(t)}</code>`;
 // Ajouté à la fin d'un fichier html quand on insère une formule (rendu automatique des formules par KaTeX)
-const KX = `\n<link rel="stylesheet" href="/vendor/katex/katex.min.css">\n<script src="/vendor/katex/katex.min.js"><\/script>\n<script src="/vendor/katex/contrib/auto-render.min.js"><\/script>\n<script>renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"\\\\[",right:"\\\\]",display:true},{left:"\\\\(",right:"\\\\)",display:false},{left:"$",right:"$",display:false}]});<\/script>\n`;
+const KX = `\n<link rel="stylesheet" href="vendor/katex/katex.min.css">\n<script src="vendor/katex/katex.min.js"><\/script>\n<script src="vendor/katex/contrib/auto-render.min.js"><\/script>\n<script>renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"\\\\[",right:"\\\\]",display:true},{left:"\\\\(",right:"\\\\)",display:false},{left:"$",right:"$",display:false}]});<\/script>\n`;
 const RE = /!?\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]|==([^=\n]+?)==|(^|\s)#([\p{L}_][\p{L}\d_\/-]*)/gu;
 // Coloration syntaxique locale (aucun script tiers ou CDN). Le même moteur sert aux blocs Markdown et aux fichiers source.
 const LANGS = new Set(['py','python','json','js','javascript','ts','typescript','c','h','cpp','c++','cs','csharp','java','bash','sh','sql','html','css','xml','yaml','yml','toml','go','rust','php','rb']);
@@ -779,9 +781,9 @@ async function renderMd(text) {
   text = text.replace(/\[\^([^\]]+)\]/g, (_, id) => footnotes.has(id) ? `<sup id="fnref-${esc(id)}"><a href="#fn-${esc(id)}">${esc(id)}</a></sup>` : _);
   const maths = []; text = stashMath(text, maths);
   let html = marked.parse(text);
+  html = html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g, '<pre class="mermaid">$1</pre>');
   html = html.replace(/<pre><code(?: class="language-([^"]+)")?>([\s\S]*?)<\/code><\/pre>/g, (_,lang,code) => `<pre class="codeblock"><code>${highlightCode(decodeCodeEntities(code),lang||'')}</code></pre>`);
   if (footnotes.size) html += '<section class="footnotes"><hr><ol>' + [...footnotes].map(([id,body]) => `<li id="fn-${esc(id)}">${marked.parseInline(body)} <a href="#fnref-${esc(id)}" aria-label="Retour">↩</a></li>`).join('') + '</ol></section>';
-  html = html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g, '<pre class="mermaid">$1</pre>');
   const doc = new DOMParser().parseFromString('<body>' + html, 'text/html'); // document inerte : rien ne s'exécute ni ne se charge
   doc.querySelectorAll('script,iframe,object,embed,link,meta,base').forEach(e => e.remove());
   doc.querySelectorAll('*').forEach(e => [...e.attributes].forEach(a => {
@@ -828,7 +830,7 @@ async function renderMd(text) {
   return doc.body.innerHTML.replace(/\uE000(\d+)\uE001/g, (_, i) => texHtml(...maths[i])); // formules rendues en dernier
 }
 // Page de l'aperçu markdown (chargée une seule fois : le contenu est mis à jour par message, le défilement est conservé)
-const SHELL = `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/vendor/katex/katex.min.css"><style id="base-preview">
+const SHELL = `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="vendor/katex/katex.min.css"><style id="base-preview">
 :root{color-scheme:light;--pv-tx:#16212b;--pv-muted:#586674;--pv-panel:#f1f3f5;--pv-line:#cbd5df;--pv-ac:#1b6ef3}body{font:16px/1.65 system-ui,sans-serif;max-width:780px;margin:1.5rem auto;padding:0 1.2rem;color:var(--pv-tx);background:var(--pv-bg,#fff)}
 pre,code{background:var(--pv-panel);border-radius:4px}pre.codeblock{color:var(--pv-tx)}.codeblock code{background:transparent;padding:0}code{padding:.1em .35em}pre{padding:1em;overflow:auto}pre code{padding:0}
 pre.mermaid{background:none;text-align:center}
@@ -845,7 +847,7 @@ a.unresolved,.unresolved{color:#8a94a0;border-bottom:1px dashed #8a94a0;text-dec
 .katex-display{overflow-x:auto;overflow-y:hidden;padding:2px 0}
 :root[data-theme="dark"] .settings .preview{color:var(--tx)}
 @media(max-width:700px){#view[data-m=live]{flex-direction:column}#view[data-m=live]>.ed{flex-basis:50%}#view[data-m=live]>iframe{flex-basis:50%}}
-</style><div id="c"></div><script src="/vendor/mermaid.js"><\/script><script>
+</style><div id="c"></div><script src="vendor/mermaid.js"><\/script><script>
 if(window.mermaid)mermaid.initialize({startOnLoad:false,securityLevel:'strict'});
 const c=document.getElementById('c');
 function theme(d){const dark=d.theme==='dark';document.documentElement.style.colorScheme=dark?'dark':'light';document.documentElement.style.setProperty('--pv-bg',dark?'#18212a':'#fff');document.documentElement.style.setProperty('--pv-tx',dark?'#e4eaf0':'#16212b');document.documentElement.style.setProperty('--pv-muted',dark?'#aab7c4':'#586674');document.documentElement.style.setProperty('--pv-panel',dark?'#222e39':'#f1f3f5');document.documentElement.style.setProperty('--pv-line',dark?'#40505e':'#cbd5df');document.body.style.background='var(--pv-bg)';document.body.style.color='var(--pv-tx)';document.getElementById('user-css')?.remove();if(d.css){const s=document.createElement('style');s.id='user-css';s.textContent=d.css;document.head.append(s)}}
@@ -971,7 +973,7 @@ function toolbar(ta, mode) {
       E.ins(`\n<pre class="mermaid">\n${MM[k]}\n</pre>\n`);
       if (need) {
         const i = ta.value.lastIndexOf('</body>'), p = i < 0 ? ta.value.length : i;
-        ta.setRangeText('\n<script src="/vendor/mermaid.js"><\/script>\n<script>mermaid.initialize({startOnLoad:true});<\/script>\n', p, p, 'preserve');
+        ta.setRangeText('\n<script src="vendor/mermaid.js"><\/script>\n<script>mermaid.initialize({startOnLoad:true});<\/script>\n', p, p, 'preserve');
         ta.dispatchEvent(new Event('input'));
       }
     },

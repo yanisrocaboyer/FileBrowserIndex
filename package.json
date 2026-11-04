@@ -8,9 +8,11 @@
     "dev": "node --watch server.js",
     "electron": "electron .",
     "dist:win": "electron-builder --win",
-    "dist:mac": "electron-builder --mac",
+    "dist:mac": "electron-builder --mac --config.mac.identity=null",
     "dist:linux": "electron-builder --linux",
-    "dist:all": "electron-builder --win --mac --linux"
+    "dist:all": "electron-builder --win --mac --linux",
+    "build:node": "node scripts/build-node.js",
+    "build:php": "node scripts/build-php.js"
   },
   "dependencies": {
     "adm-zip": "^0.5.14",
@@ -36,7 +38,10 @@
     },
     "files": [
       "**/*",
-      "!node_modules/${/*}"
+      "!node_modules/${/*}",
+      "!dist/**",
+      "!php/config.php",
+      "!php/storage/**"
     ],
     "mac": {
       "target": [
@@ -44,7 +49,8 @@
         "zip"
       ],
       "category": "public.app-category.utilities",
-      "icon": "./FBI-Logo.png"
+      "icon": "./FBI-Logo.png",
+      "identity": null
     },
     "win": {
       "target": [

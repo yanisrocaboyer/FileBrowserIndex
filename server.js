@@ -416,6 +416,38 @@ app.get('/api/nodes/:id/perms', auth, adminOnly, w(async (q, s) => {
       if (c.acl.has(p)) { from = { id: p, name: c.byId.get(p).name }; break; }
   s.json({ rules: rules.map((r) => ({ type: r.type, id: r.id, view: !!r.view, edit: !!r.edit })), from });
 }));
+
+app.put('/api/nodes/:id/perms', auth, adminOnly, w(async (q, s) => {
+  const c = await ctx(q.user), n = c.byId.get(+q.params.id);
+  if (!n || n.private_owner != null || n.type !== 'folder')
+    return fail(s, 404, 'Dossier introuvable.');
+  if (!Array.isArray(q.body.rules))
+    return fail(s, 400, 'Règles de permissions invalides.');
+
+  const rules = [];
+  for (const rule of q.body.rules) {
+    const type = rule?.type;
+    const id = Number(rule?.id || 0);
+    if (!['user', 'group', 'all'].includes(type))
+      return fail(s, 400, 'Type de permission invalide.');
+    if (type === 'user' && !(await pool.query('SELECT id FROM users WHERE id=?', [id]))[0].length)
+      return fail(s, 400, 'Utilisateur introuvable.');
+    if (type === 'group' && !(await pool.query('SELECT id FROM user_groups WHERE id=?', [id]))[0].length)
+      return fail(s, 400, 'Groupe introuvable.');
+    if (type === 'all' && id !== 0)
+      return fail(s, 400, 'Identifiant de règle invalide.');
+    rules.push({ type, id, view: !!rule.view, edit: !!rule.edit });
+  }
+
+  await pool.query('DELETE FROM perms WHERE node_id=?', [n.id]);
+  for (const rule of rules) {
+    await pool.query(
+      'INSERT INTO perms(node_id,subject_type,subject_id,can_view,can_edit) VALUES(?,?,?,?,?)',
+      [n.id, rule.type, rule.id, rule.view ? 1 : 0, rule.edit ? 1 : 0]
+    );
+  }
+  s.json({ ok: true });
+}));
 app.put('/api/nodes/:id', auth, w(async (q, s) => {
   const c = await ctx(q.user);
   const n = c.byId.get(+q.params.id);
@@ -626,10 +658,11 @@ app.post('/api/nodes', auth, w(async (q, s) => {
 }));
 
 // Importer n'importe quel type de fichier
-app.post('/api/upload', auth, upload.array('files'), w(async (q, s) => {
+app.post('/api/upload', auth, upload.fields([{ name: 'files', maxCount: 1000 }, { name: 'files[]', maxCount: 1000 }]), w(async (q, s) => {
   const pl = place(await ctx(q.user), q.user, +q.body.parent_id || null, q.body.private === '1');
   if (pl.err) return fail(s, ...pl.err);
-  for (const f of q.files || []) await ins(q.user.id, pl.parent, fixName(f).slice(0, 255), 'file', f.buffer, pl.po);
+  const files = [...(q.files?.files || []), ...(q.files?.['files[]'] || [])];
+  for (const f of files) await ins(q.user.id, pl.parent, fixName(f).slice(0, 255), 'file', f.buffer, pl.po);
   s.json({ ok: true });
 }));
 
