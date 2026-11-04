@@ -64,7 +64,8 @@
         "deb"
       ],
       "category": "Utility",
-      "icon": "./FBI-Logo.png"
+      "icon": "./FBI-Logo.png",
+      "maintainer": "FBI Project <98208402+yanisrocaboyer@users.noreply.github.com>"
     }
   }
 }
