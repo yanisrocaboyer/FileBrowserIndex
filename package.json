@@ -38,7 +38,10 @@
     },
     "files": [
       "**/*",
-      "!node_modules/${/*}"
+      "!node_modules/${/*}",
+      "!dist/**",
+      "!php/config.php",
+      "!php/storage/**"
     ],
     "mac": {
       "target": [
