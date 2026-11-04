@@ -26,7 +26,22 @@ Ne publiez jamais `config.php` ni le mot de passe root. Si votre hébergeur ne p
 
 Les opérations ZIP nécessitent `ZipArchive`. Les limites PHP et celles de l'hébergeur peuvent être inférieures à la limite configurée dans FBI. Les imports volumineux peuvent donc être refusés par l'hébergeur avant d'arriver à l'application.
 
-Pour Nginx, configurez le site pour servir les fichiers existants directement et transmettre les autres routes à `index.php` via PHP-FPM. Ne rendez jamais `config.php` accessible au téléchargement.
+Pour Nginx, adaptez le bloc PHP-FPM à votre version et à votre hébergeur. Exemple de principe à intégrer dans le bloc `server` :
+
+```nginx
+location ^~ /storage/ { deny all; }
+location ~ /config(\.example)?\.php$ { deny all; }
+location / {
+    try_files $uri $uri/ /index.php?$query_string;
+}
+location ~ \.php$ {
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+}
+```
+
+Adaptez le socket PHP-FPM à votre système. Ne rendez jamais `config.php` accessible au téléchargement.
 
 ## Base de données
 
