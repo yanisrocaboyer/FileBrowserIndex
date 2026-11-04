@@ -2,3 +2,6 @@
 /node_modules/
 /dist-apps/
 *.DS_Store
+/dist/
+/php/config.php
+/php/storage/
