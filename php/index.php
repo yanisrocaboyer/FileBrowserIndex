@@ -36,6 +36,9 @@ function init():void{
  "CREATE TABLE IF NOT EXISTS share_links(id INT AUTO_INCREMENT PRIMARY KEY,node_id INT NOT NULL UNIQUE,token CHAR(64) NOT NULL UNIQUE,enabled TINYINT(1) NOT NULL DEFAULT 1,editor_only TINYINT(1) NOT NULL DEFAULT 0,created_by INT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL) ENGINE=InnoDB"
  ];foreach($sql as $s)pdo()->exec($s);
  foreach(['users'=>['role'=>"ALTER TABLE users ADD COLUMN role ENUM('root','admin','user') NOT NULL DEFAULT 'user'",'display_name'=>'ALTER TABLE users ADD COLUMN display_name VARCHAR(80) NULL'],'nodes'=>['private_owner'=>'ALTER TABLE nodes ADD COLUMN private_owner INT NULL']] as $t=>$cols)foreach($cols as $col=>$alter){$r=one('SELECT COUNT(*) n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?',[$t,$col]);if(!(int)$r['n'])pdo()->exec($alter);}
+ $fks=rows("SELECT CONSTRAINT_NAME c FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='nodes' AND COLUMN_NAME='user_id' AND REFERENCED_TABLE_NAME='users'");
+ foreach($fks as $fk)pdo()->exec('ALTER TABLE nodes DROP FOREIGN KEY `'.str_replace('`','',$fk['c']).'`');
+ if($fks)pdo()->exec('ALTER TABLE nodes MODIFY user_id INT NULL');
  $root=one("SELECT id FROM users WHERE role='root' LIMIT 1");if($root&&!c('RESET_ROOT',false))return;
  $pw=rtrim(strtr(base64_encode(random_bytes(12)),'+/','-_'),'=');$hash=password_hash($pw,PASSWORD_BCRYPT);
  if($root)q('UPDATE users SET password_hash=? WHERE id=?',[$hash,$root['id']]);else{$old=one("SELECT id FROM users WHERE username='root'");if($old)q("UPDATE users SET role='root',password_hash=? WHERE id=?",[$hash,$old['id']]);else q("INSERT INTO users(username,password_hash,role) VALUES('root',?,'root')",[$hash]);}
