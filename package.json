@@ -1,0 +1,64 @@
+{
+  "name": "fbi",
+  "version": "1.0.0",
+  "description": "Gestionnaire de fichiers web (compatible Electron) avec comptes et base MySQL",
+  "main": "main.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "electron": "electron .",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux",
+    "dist:all": "electron-builder --win --mac --linux"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.14",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "katex": "0.16.11",
+    "marked": "4.3.0",
+    "mermaid": "10.9.3",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.9.7"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.filebrowserindex.app",
+    "productName": "FBI",
+    "directories": {
+      "output": "dist-apps"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/${/*}"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "./FBI-Logo.png"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "./FBI-Logo.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "icon": "./FBI-Logo.png"
+    }
+  }
+}

@@ -1,0 +1,1122 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FBI</title>
+<link rel="shortcut icon" href="assets/img/FBI-logo.png" type="image/x-icon">
+<style>
+:root{--bg:#eef1f5;--pn:#fff;--tx:#16212b;--mu:#6b7a88;--ln:#d9e0e7;--ac:#1b6ef3;--hv:#e6edf7;--dg:#c8321e}
+:root[data-theme=dark]{--bg:#10161c;--pn:#18212a;--tx:#e4eaf0;--mu:#8696a6;--ln:#2a3641;--ac:#5b9bff;--hv:#22303d;--dg:#ff7a66}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--tx)}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--pn);border:1px solid var(--ln);border-radius:6px;padding:5px 10px;cursor:pointer}
+button:hover{background:var(--hv)}
+button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+input,select{background:var(--pn);border:1px solid var(--ln);border-radius:6px;padding:8px 10px;width:100%}
+input[type=checkbox]{width:auto}
+.mu{color:var(--mu)}
+
+#auth{min-height:100%;display:grid;place-items:center;padding:1rem}
+#auth form{width:min(340px,100%);background:var(--pn);border:1px solid var(--ln);border-radius:10px;padding:1.5rem;display:grid;gap:.75rem}
+#auth h1{margin:0 0 .25rem;font-size:1.4rem}
+#auth p{margin:0}
+#err{color:var(--dg);min-height:1.2em}
+#auth button{padding:8px}
+
+#app{height:100%;display:grid;grid-template-columns:310px 1fr}
+aside{background:var(--pn);border-right:1px solid var(--ln);display:flex;flex-direction:column;min-height:0}
+.hd{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--ln)}
+.tb{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid var(--ln);flex-wrap:wrap}
+#tree{flex:1;overflow:auto;padding:6px 0}
+.row{display:flex;gap:6px;align-items:center;padding:3px 10px;cursor:pointer;user-select:none;white-space:nowrap}
+.row:hover{background:var(--hv)}.row.on{background:var(--hv);box-shadow:inset 3px 0 var(--ac)}
+.row.dr{outline:2px dashed var(--ac);outline-offset:-2px}
+.row.ro .nm{opacity:.7;font-style:italic}
+.row.sec{font-weight:600;margin-top:4px}
+.row .nm{overflow:hidden;text-overflow:ellipsis}
+.empty{color:var(--mu);padding:.5rem 1rem}
+#prog{padding:8px 12px;border-top:1px solid var(--ln)}
+#pl{font-size:12px;color:var(--mu);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{height:6px;background:var(--ln);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--ac);transition:width .15s}
+.bar i.ind{width:35%;transition:none;animation:ind 1s ease-in-out infinite alternate}
+@keyframes ind{from{margin-left:0}to{margin-left:65%}}
+main{display:flex;flex-direction:column;min-width:0;min-height:0}
+#bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px;background:var(--pn);border-bottom:1px solid var(--ln);min-height:46px}
+#bar div{display:flex;gap:6px}
+#title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#view{flex:1;display:flex;min-height:0;min-width:0;overflow:hidden}
+#view>*{flex:1;min-width:0;border:0;background:var(--pn)}
+#view>iframe{background:var(--pn)}
+.preview-shell{display:flex;flex:1;min-width:0;min-height:0;flex-direction:column;background:var(--pn)}.preview-head{display:flex;justify-content:flex-end;gap:8px;padding:7px 10px;border-bottom:1px solid var(--ln);background:var(--pn)}.preview-shell iframe{flex:1;width:100%;min-height:0;border:0;background:var(--pn)}#view[data-m=pv]>.preview-shell{display:flex}#view[data-m=ed]>.preview-shell{display:none}
+#view textarea{font:14px/1.65 ui-monospace,"Cascadia Code",Consolas,monospace;padding:20px;resize:none;color:var(--tx);tab-size:4;white-space:pre;}
+#view>.ed{display:flex;flex:1;flex-direction:column;min-width:0;min-height:0;background:var(--pn)}
+.ed textarea{flex:1;min-height:0;width:100%;border:0;background:var(--pn);outline:none}
+#view[data-m=ed]>.ed~iframe{display:none}
+#view[data-m=pv]>.ed{display:none}
+#view[data-m=live]{flex-direction:column;overflow:auto}
+#view[data-m=live]>.ed{flex:1 0 52%;min-height:240px;border-bottom:1px solid var(--ln)}
+#view[data-m=live]>iframe{flex:1 0 48%;min-height:240px;width:100%;border:0}
+#view[data-m=live]>.ed~iframe{display:block}
+.etb{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:9px 12px;border-bottom:1px solid var(--ln);background:var(--pn);box-shadow:0 2px 8px #0000000a;position:sticky;top:0;z-index:2}
+.etb button{padding:6px 9px;min-width:32px;border-radius:8px;background:var(--bg);border-color:transparent;font-weight:600}
+.etb button:hover{background:var(--hv);border-color:var(--ln)}
+.etb select{width:auto;padding:6px 9px;border-radius:8px;background:var(--bg);border-color:transparent}
+.etb input[type=color]{width:30px;height:30px;padding:2px;border:1px solid var(--ln);background:var(--pn);border-radius:8px;cursor:pointer}
+.etb .sep{width:1px;align-self:stretch;background:var(--ln);margin:0 4px}
+.etb .toolgroup{display:flex;align-items:center;gap:4px}
+.autosave{font-size:12px;color:var(--mu);padding:4px 12px;border-bottom:1px solid var(--ln);background:var(--pn)}
+.code-editor{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--pn)}
+.code-editor pre,.code-editor textarea{position:absolute;inset:0;margin:0;width:100%;height:100%;overflow:auto;padding:20px;border:0;font:14px/1.65 ui-monospace,"Cascadia Code",Consolas,monospace;tab-size:4;white-space:pre;}
+.code-editor pre{pointer-events:none;color:var(--tx);background:var(--pn)}
+.code-editor textarea{background:transparent;color:transparent;-webkit-text-fill-color:transparent;caret-color:var(--tx);resize:none;outline:none;}
+.code-editor textarea::selection{background:#4388ed55;-webkit-text-fill-color:transparent}
+.hl-keyword{color:#c678dd}.hl-string{color:#98c379}.hl-number{color:#d19a66}.hl-comment{color:#7f8c98;font-style:italic}.hl-function{color:#61afef}.hl-property{color:#e5c07b}.hl-operator{color:#56b6c2}
+#vm{margin-right:8px}#vm button.on{background:var(--ac);border-color:var(--ac);color:#fff}
+#view>img{flex:0 1 auto;margin:auto;max-width:100%;max-height:100%;object-fit:contain;background:none}
+#view>.bin{display:grid;place-content:center;justify-items:center;gap:.6rem;text-align:center}
+#hint{margin:auto;color:var(--mu)}
+.home,.settings{width:min(900px,100%);margin:0 auto;padding:28px;overflow:auto}.home h1,.settings h1{font-size:26px;margin:0 0 6px}.recent{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-top:18px}.recent button{text-align:left;padding:14px;display:grid;gap:5px}.settings nav{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.settings section{background:var(--pn);border:1px solid var(--ln);border-radius:10px;padding:18px;margin:12px 0}.settings label{display:block;margin:10px 0 5px}.settings textarea{width:100%;min-height:150px;background:var(--pn);color:var(--tx);border:1px solid var(--ln);border-radius:7px;padding:10px;font:13px/1.5 monospace}.settings .line{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.settings .line>*{flex:1}.settings .preview{border:1px solid var(--ln);border-radius:8px;padding:12px;margin-top:10px;background:var(--pn)}
+#offline-indicator{position:fixed;right:14px;bottom:14px;z-index:20;padding:7px 11px;border-radius:20px;background:#b42318;color:#fff;font-size:12px;box-shadow:0 3px 12px #0003;display:none}#offline-indicator.on{display:block}#sharedlg{width:min(560px,94vw)}#sharedlg label{display:block;margin:12px 0}#sharedlg input[type=checkbox]{width:auto}#sharedlg .urow input{flex:1;min-width:0}
+#ctx{position:fixed;z-index:9;background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:4px;box-shadow:0 6px 24px #0003;min-width:190px}
+#ctx button{display:block;width:100%;text-align:left;border:0;background:none}
+#ctx button:hover{background:var(--hv)}#ctx .dg{color:var(--dg)}
+dialog{border:1px solid var(--ln);border-radius:10px;background:var(--pn);color:var(--tx);padding:1.2rem;width:min(360px,92vw)}
+dialog::backdrop{background:#0006}
+dialog h3{margin:0 0 .5rem}
+dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-content:flex-end}
+#usr,#grp,#pdlg{width:min(560px,94vw)}
+.urow{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln);flex-wrap:wrap}
+.urow .nm{flex:1;min-width:90px}
+#uform,#gform{margin-top:1rem}
+.grp{border:1px solid var(--ln);border-radius:8px;padding:6px 10px;margin:8px 0}
+.grp .urow{border:0}
+.mem{display:flex;flex-wrap:wrap;gap:4px 16px;padding:2px 0 6px}
+@media(max-width:700px){#app{grid-template-columns:1fr;grid-template-rows:50% 1fr}#view{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<div id="auth" hidden>
+  <form id="authForm">
+    <center>
+      <img src="assets/img/FBI-logo.png" alt="fbi_logo">
+      <h1>FBI</h1>
+    </center>
+    <input id="u" placeholder="Identifiant" autocomplete="username" required>
+    <input id="p" type="password" placeholder="Mot de passe" autocomplete="current-password" required>
+    <p id="err" role="alert"></p>
+    <button type="submit" class="pri">Se connecter</button>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <aside>
+    <div class="hd"><b>FBI</b><span id="me" class="mu"></span></div>
+    <div class="tb">
+      <button id="homebtn">Accueil</button><button id="settingsbtn">Paramètres</button><button id="out">Quitter</button>
+    </div>
+    <div class="tb">
+      <button id="nf">+ Fichier</button><button id="nd">+ Dossier</button><button id="up">Importer</button>
+    </div>
+    <div id="tree"></div>
+    <div id="prog" hidden><div id="pl"></div><div class="bar"><i id="pf"></i></div></div>
+  </aside>
+  <main>
+    <div id="bar"><span id="title"></span><div><div id="vm" hidden><button data-m="ed">Édition</button><button data-m="live">Live</button><button data-m="pv">Lecture</button></div><button id="share" hidden>Partager</button><button id="dl" hidden>Télécharger</button><button id="save" class="pri" hidden>Enregistrer</button></div></div>
+    <div id="view"><center><p id="hint">Sélectionnez un fichier pour l'ouvrir.</p></center></div>
+  </main>
+</div>
+
+<div id="ctx" hidden></div>
+<input type="file" id="files" multiple hidden>
+
+<datalist id="fl"></datalist>
+<dialog id="dlg"><form method="dialog">
+  <label for="dlgIn"></label><input id="dlgIn" required>
+  <div class="row2"><button value="ok" class="pri">OK</button><button value="cancel" formnovalidate>Annuler</button></div>
+</form></dialog>
+
+<dialog id="usr">
+  <h3>Utilisateurs</h3>
+  <div id="ulist"></div>
+  <form id="uform">
+    <input id="un" placeholder="Identifiant" autocomplete="off" required>
+    <input id="up2" type="password" placeholder="Mot de passe (6 caractères min.)" autocomplete="new-password" required>
+    <label id="ualab"><input type="checkbox" id="uadm"> Administrateur</label>
+    <div class="row2"><button class="pri">Créer le compte</button></div>
+  </form>
+</dialog>
+
+<dialog id="grp">
+  <h3>Groupes</h3>
+  <div id="glist"></div>
+  <form id="gform">
+    <input id="gn" placeholder="Nom du nouveau groupe" autocomplete="off" required>
+    <div class="row2"><button class="pri">Créer le groupe</button></div>
+  </form>
+</dialog>
+
+<dialog id="sharedlg"><h3>Partager le fichier</h3><p class="mu">Le lien est accessible sans compte. Le contenu HTML est affiché comme texte pour empêcher l’exécution de scripts.</p><label><input type="checkbox" id="share-enabled" checked> Lien activé</label><label><input type="checkbox" id="share-editor"> Lien éditeur (les visiteurs pourront modifier le fichier)</label><div class="urow"><input id="share-url" readonly placeholder="Le lien apparaîtra ici"><button id="share-copy">Copier</button></div><div class="row2"><button id="share-save" class="pri">Enregistrer</button><button id="share-close">Fermer</button></div></dialog>
+<div id="offline-indicator" role="status">Hors ligne</div>
+<dialog id="pdlg">
+  <h3 id="ptitle"></h3>
+  <p id="pinfo" class="mu"></p>
+  <div id="plist"></div>
+  <div id="padd" class="urow"><select id="psub" style="flex:1;width:auto"></select><button id="pplus">Ajouter</button></div>
+  <div class="row2" style="margin-top:1rem"><button id="psave" class="pri">Enregistrer</button><button id="pclose">Annuler</button></div>
+</dialog>
+
+<script src="/vendor/marked.js"></script>
+<script src="/vendor/katex/katex.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const ce = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+const SH = { id: 'sh', type: 'folder', pseudo: true, priv: false, name: 'Fichiers partagés' };
+const PV = { id: 'pv', type: 'folder', pseudo: true, priv: true, name: 'Mes fichiers privés' };
+let token = localStorage.getItem('t'),
+    me = null,
+    nodes = [],
+    open = new Set(['sh', 'pv']),
+    sel = null,
+    cur = null,
+    dirty = false,
+    url = null,
+    tm,
+    autosaveTimer = null,
+    autosaveBusy = false;
+addEventListener('unhandledrejection', e => alert(e.reason.message || 'Erreur'));
+
+// ---- API
+async function api(u, o = {}) {
+  const h = { ...(o.headers || {}) };
+  if (token) h.Authorization = 'Bearer ' + token;
+  if (o.json !== undefined) { h['Content-Type'] = 'application/json'; o.body = JSON.stringify(o.json); }
+  const r = await fetch(u, { method: o.method, body: o.body, headers: h });
+  if (r.status === 401) { logout(); throw Error('Session expirée, reconnectez-vous.'); }
+  if (!r.ok) throw Error((await r.json().catch(() => ({}))).error || 'Erreur');
+  return r;
+}
+const J = async (u, o) => (await api(u, o)).json();
+
+// ---- Barre de progression
+function prog(label, pct) {
+  $('#prog').hidden = false;
+  $('#pl').textContent = label + (pct != null ? ' — ' + Math.round(pct) + ' %' : '');
+  const f = $('#pf');
+  if (pct == null) { f.className = 'ind'; f.style.width = ''; } else { f.className = ''; f.style.width = pct + '%'; }
+}
+const progEnd = () => $('#prog').hidden = true;
+
+// ---- Connexion
+$('#authForm').onsubmit = async e => {
+  e.preventDefault();
+  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: $('#u').value, password: $('#p').value }) });
+  const d = await r.json();
+  if (!r.ok) { $('#err').textContent = d.error; return; }
+  token = d.token; localStorage.setItem('t', token);
+  $('#p').value = ''; $('#err').textContent = ''; show();
+};
+function logout() { token = null; me = null; localStorage.removeItem('t'); nodes = []; closeView(); show(); }
+$('#out').onclick = logout;
+// ---- Partage public
+let shareNode = null;
+async function openShare(n) {
+  shareNode = n;
+  const d = await J(`/api/nodes/${n.id}/share`);
+  $('#share-enabled').checked = d ? !!d.enabled : true;
+  $('#share-editor').checked = d ? !!d.editor_only : false;
+  $('#share-url').value = d ? `${location.origin}/s/${d.token}` : '';
+  $('#sharedlg').showModal();
+}
+$('#share').onclick = () => cur && openShare(cur);
+$('#share-close').onclick = () => $('#sharedlg').close();
+$('#share-save').onclick = async () => {
+  if (!shareNode) return;
+  const d = await J(`/api/nodes/${shareNode.id}/share`, {method:'PUT',json:{enabled:$('#share-enabled').checked,editor_only:$('#share-editor').checked}});
+  $('#share-url').value = `${location.origin}/s/${d.token}`;
+};
+$('#share-copy').onclick = async () => { const v=$('#share-url').value; if(!v) return alert('Enregistre d’abord le lien.'); await navigator.clipboard.writeText(v); alert('Lien copié.'); };
+
+// ---- Cache hors ligne local (IndexedDB), disponible dans Electron et les navigateurs compatibles
+const OFF_DB='fbi-offline-v1';
+function offlineDB(){return new Promise((resolve,reject)=>{const r=indexedDB.open(OFF_DB,1);r.onupgradeneeded=()=>{const db=r.result;if(!db.objectStoreNames.contains('files'))db.createObjectStore('files',{keyPath:'id'});};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+async function offlinePut(item){const db=await offlineDB();return new Promise((res,rej)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put(item);tx.oncomplete=()=>{db.close();res();};tx.onerror=()=>rej(tx.error);});}
+async function offlineGet(id){const db=await offlineDB();return new Promise((res,rej)=>{const tx=db.transaction('files','readonly'),r=tx.objectStore('files').get(+id);r.onsuccess=()=>{db.close();res(r.result||null);};r.onerror=()=>rej(r.error);});}
+async function offlineDelete(id){const db=await offlineDB();return new Promise((res,rej)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').delete(+id);tx.oncomplete=()=>{db.close();res();};tx.onerror=()=>rej(tx.error);});}
+async function offlineHas(id){return !!(await offlineGet(id));}
+window.__fbiOffline=false;function updateOnlineBadge(){const el=$('#offline-indicator');if(el)el.classList.toggle('on',!navigator.onLine||window.__fbiOffline);}
+addEventListener('online',updateOnlineBadge);addEventListener('offline',updateOnlineBadge);
+async function cacheOffline(n){
+  const all=[n]; if(n.type==='folder'){const descendants=nodes.filter(x=>{let p=x.parent_id;while(p){if(p===n.id)return true;const par=nodes.find(y=>y.id===p);p=par?.parent_id||null;}return false;});all.push(...descendants);}
+  const files=all.filter(x=>x.type==='file'); if(!files.length)return alert('Aucun fichier à mettre hors ligne.');
+  prog('Mise en cache hors ligne',0);let done=0;
+  try{for(const f of files){const r=await api(`/api/nodes/${f.id}/content`);const blob=await r.blob();await offlinePut({id:f.id,name:f.name,mime:f.mime||blob.type||'text/plain',content:blob,updated_at:f.updated_at});done++;prog('Mise en cache hors ligne',done/files.length*100);}localStorage.setItem('fw-offline-nodes',JSON.stringify(nodes));localStorage.setItem('fw-offline-me',JSON.stringify(me));alert(`${done} fichier(s) disponible(s) hors ligne.`);}finally{progEnd();}
+}
+async function removeOffline(n){
+  const all=[n];if(n.type==='folder'){all.push(...nodes.filter(x=>{let p=x.parent_id;while(p){if(p===n.id)return true;const par=nodes.find(y=>y.id===p);p=par?.parent_id||null;}return false;}));}
+  for(const f of all)if(f.type==='file')await offlineDelete(f.id);
+  alert('Cache hors ligne supprimé pour cet élément.');
+}
+
+async function show() {
+  $('#auth').hidden = !!token; $('#app').hidden = !token;
+  if (!token) return;
+  try {
+    me = await J('/api/me');
+    await load();
+    window.__fbiOffline=false;
+    localStorage.setItem('fw-offline-me',JSON.stringify(me));
+    localStorage.setItem('fw-offline-nodes',JSON.stringify(nodes));
+  } catch(e) {
+    const cachedMe=localStorage.getItem('fw-offline-me'), cachedNodes=localStorage.getItem('fw-offline-nodes');
+    if(cachedMe && cachedNodes){window.__fbiOffline=true;me=JSON.parse(cachedMe);nodes=JSON.parse(cachedNodes);render();updateOnlineBadge();}
+    else throw e;
+  }
+  $('#me').textContent = (me.display_name || me.username) + ' · @' + me.username + (me.role === 'user' ? '' : ' (' + me.role + ')');
+  showHome(); updateOnlineBadge();
+}
+
+
+// ---- Accueil et paramètres
+function showHome() {
+  clearTimeout(autosaveTimer); autosaveTimer=null; cur = null; dirty = false; if (url) URL.revokeObjectURL(url); url = null;
+  $('#title').textContent = 'Accueil'; $('#save').hidden = true; $('#dl').hidden = true; $('#share').hidden = true; $('#vm').hidden = true;
+  const V = $('#view'); V.removeAttribute('data-m'); V.innerHTML = '';
+  const wrap = ce('div','home'); wrap.append(ce('h1','',`Bonjour ${me.display_name || me.username} !`), ce('p','mu','Reprenez là où vous en étiez.'));
+  const h = ce('h3','','Derniers fichiers modifiés'); wrap.append(h);
+  const recent = nodes.filter(n => n.type === 'file').sort((a,b) => new Date(b.updated_at)-new Date(a.updated_at)).slice(0,8);
+  const grid = ce('div','recent');
+  if (!recent.length) grid.append(ce('p','mu','Aucun fichier récent pour le moment.'));
+  recent.forEach(n => { const b=ce('button'); b.append(ce('b','',n.name),ce('small','mu',new Date(n.updated_at).toLocaleString())); b.onclick=()=>openNode(n); grid.append(b); });
+  wrap.append(grid); V.append(wrap);
+}
+function applyTheme() {
+  const theme = localStorage.getItem('fw-theme') || 'light';
+  document.documentElement.dataset.theme = theme;
+  const css = localStorage.getItem('fw-custom-css') || '';
+  let st = document.getElementById('custom-css'); if (!st) { st=ce('style'); st.id='custom-css'; document.head.append(st); }
+  st.textContent = css;
+  document.querySelectorAll('#view iframe').forEach(f => { if (f._md && f.contentWindow) f.contentWindow.postMessage({type:'render',html:f._lastHtml||'',theme,css},'*'); });
+}
+async function showSettings(tab='account') {
+  if (dirty && !confirm('Abandonner les modifications non enregistrées ?')) return;
+  clearTimeout(autosaveTimer); autosaveTimer=null; cur=null; $('#title').textContent='Paramètres'; $('#save').hidden=true; $('#dl').hidden=true; $('#share').hidden=true; $('#vm').hidden=true;
+  const V=$('#view'); V.removeAttribute('data-m'); V.innerHTML='';
+  const root=ce('div','settings'); root.append(ce('h1','','Paramètres'),ce('p','mu','Compte, utilisateurs, groupes et apparence du site.'));
+  const nav=ce('nav'); [['account','Compte'],['access','Utilisateurs & groupes'],['theme','Theme']].forEach(([id,label])=>{const b=ce('button',id===tab?'pri':'',label);b.onclick=()=>showSettings(id);nav.append(b)});root.append(nav);
+  if(tab==='account'){
+    const sec=ce('section');sec.append(ce('h3','','Gestion du compte'));
+    const name=ce('input'), username=ce('input'), current=ce('input'); name.value=me.display_name||me.username;username.value=me.username;current.type='password';
+    [['Nom affiché',name],['Username',username],['Mot de passe actuel (confirmation)',current]].forEach(([l,i])=>{sec.append(ce('label','',l),i)});
+    const saveB=ce('button','pri','Enregistrer le profil');saveB.onclick=async()=>{await J('/api/me/profile',{method:'PUT',json:{name:name.value,username:username.value,password:current.value}});current.value='';me=await J('/api/me');$('#me').textContent=(me.display_name||me.username)+' · @'+me.username+(me.role==='user'?'':' ('+me.role+')');alert('Profil mis à jour.');};sec.append(saveB);
+    sec.append(ce('hr'));
+    const old=ce('input'),nw=ce('input');old.type=nw.type='password';sec.append(ce('h3','','Changer le mot de passe'),ce('label','','Mot de passe actuel'),old,ce('label','','Nouveau mot de passe (6 caractères minimum)'),nw);
+    const pw=ce('button','pri','Modifier le mot de passe');pw.onclick=async()=>{await J('/api/me/password',{method:'PUT',json:{old:old.value,password:nw.value}});old.value=nw.value='';alert('Mot de passe modifié.');};sec.append(pw);root.append(sec);
+  } else if(tab==='access'){
+    const sec=ce('section');sec.append(ce('h3','','Gestion des accès'));sec.append(ce('p','mu',me.role==='user'?'La gestion des utilisateurs et groupes est réservée aux administrateurs.':'Utilisez les outils ci-dessous pour gérer les comptes et les groupes.'));
+    if(me.role!=='user'){
+      const users=ce('section'); users.append(ce('h3','','Utilisateurs'));
+      const userList=ce('div'); userList.id='settings-ulist'; users.append(userList);
+      const userForm=ce('form'); userForm.id='settings-uform';
+      const uname=ce('input'); uname.id='settings-un'; uname.placeholder='Identifiant'; uname.autocomplete='off'; uname.required=true;
+      const upass=ce('input'); upass.id='settings-upw'; upass.type='password'; upass.placeholder='Mot de passe (6 caractères min.)'; upass.autocomplete='new-password'; upass.required=true;
+      const roleLabel=ce('label'); roleLabel.id='settings-ualab'; const roleCheck=ce('input'); roleCheck.id='settings-uadm'; roleCheck.type='checkbox'; roleLabel.append(roleCheck,' Administrateur');
+      const create=ce('button','pri','Créer le compte'); create.type='submit'; userForm.append(uname,upass,roleLabel,create); users.append(userForm);
+      roleLabel.hidden=me.role!=='root';
+
+      const groups=ce('section'); groups.append(ce('h3','','Groupes'));
+      const groupList=ce('div'); groupList.id='settings-glist'; groups.append(groupList);
+      const groupForm=ce('form'); groupForm.id='settings-gform';
+      const groupName=ce('input'); groupName.id='settings-gn'; groupName.placeholder='Nom du nouveau groupe'; groupName.required=true;
+      const groupCreate=ce('button','pri','Créer le groupe'); groupCreate.type='submit'; groupForm.append(groupName,groupCreate); groups.append(groupForm);
+
+      const refresh=ce('button','pri','Actualiser'); refresh.onclick=async()=>{await refreshSettingsUsers();await refreshSettingsGroups();};
+      userForm.onsubmit=async e=>{e.preventDefault();try{await J('/api/users',{method:'POST',json:{username:uname.value,password:upass.value,role:roleCheck.checked?'admin':'user'}});uname.value='';upass.value='';roleCheck.checked=false;await refreshSettingsUsers();}catch(err){alert(err.message);}};
+      groupForm.onsubmit=async e=>{e.preventDefault();try{await J('/api/groups',{method:'POST',json:{name:groupName.value}});groupName.value='';await refreshSettingsGroups();}catch(err){alert(err.message);}};
+      sec.append(refresh); root.append(sec,users,groups); V.append(root);
+      try{await refreshSettingsUsers();await refreshSettingsGroups();}catch(e){sec.append(ce('p','mu','Impossible de charger les utilisateurs/groupes : '+e.message));} return;
+    } else root.append(sec);
+  } else {
+    const sec=ce('section');sec.append(ce('h3','','Apparence'));
+    const sel=ce('select');sel.append(new Option('Light','light'),new Option('Dark','dark'));sel.value=localStorage.getItem('fw-theme')||'light';sel.onchange=()=>{localStorage.setItem('fw-theme',sel.value);applyTheme();};sec.append(ce('label','','Thème par défaut'),sel);
+    const css=ce('textarea');css.placeholder='/* CSS personnalisé appliqué au site et aux aperçus */';css.value=localStorage.getItem('fw-custom-css')||'';sec.append(ce('label','','CSS personnalisé'),css);
+    const file=ce('input');file.type='file';file.accept='.css,text/css';sec.append(ce('label','','Importer un fichier CSS'),file);
+    file.onchange=async()=>{const f=file.files[0];if(f){css.value=await f.text();}};
+    const save=ce('button','pri','Appliquer et enregistrer le CSS');save.onclick=()=>{localStorage.setItem('fw-custom-css',css.value);applyTheme();alert('CSS appliqué au site et aux prochains aperçus.');};sec.append(save);
+    const demo=ce('div','preview','Aperçu du thème');demo.textContent='Aperçu du thème et des styles personnalisés.';sec.append(demo);root.append(sec);
+  }
+  V.append(root);
+}
+$('#homebtn').onclick=showHome;$('#settingsbtn').onclick=()=>showSettings('account');
+applyTheme();
+
+// Gestion des utilisateurs/groupes directement dans Paramètres (sans déplacer les anciens dialogs)
+async function refreshSettingsUsers(){
+  const L=$('#settings-ulist'); if(!L)return; L.innerHTML='';
+  const us=await J('/api/users');
+  if(!us.length)L.append(ce('p','mu','Aucun utilisateur.'));
+  us.forEach(u=>{
+    const row=ce('div','urow'); row.append(ce('span','nm',u.username),ce('span','mu',u.role));
+    if(u.role!=='root'&&u.id!==me.id&&(me.role==='root'||u.role==='user')){
+      const pw=ce('button','','Mot de passe'); pw.onclick=async()=>{const v=await ask('Nouveau mot de passe pour '+u.username,'','password');if(v)try{await J('/api/users/'+u.id,{method:'PUT',json:{password:v}});alert('Mot de passe modifié.');}catch(e){alert(e.message);}};
+      const del=ce('button','','Supprimer'); del.onclick=async()=>{if(!confirm('Supprimer le compte « '+u.username+' » ?'))return;try{await J('/api/users/'+u.id,{method:'DELETE'});await refreshSettingsUsers();}catch(e){alert(e.message);}};
+      row.append(pw,del);
+      if(me.role==='root'){const role=ce('button','',u.role==='admin'?'Retirer admin':'Passer admin');role.onclick=async()=>{try{await J('/api/users/'+u.id,{method:'PUT',json:{role:u.role==='admin'?'user':'admin'}});await refreshSettingsUsers();}catch(e){alert(e.message);}};row.append(role);}
+    }
+    L.append(row);
+  });
+}
+async function refreshSettingsGroups(){
+  const L=$('#settings-glist'); if(!L)return; L.innerHTML='';
+  const [gs,us]=await Promise.all([J('/api/groups'),J('/api/users')]);
+  const members=us.filter(u=>u.role==='user');
+  if(!gs.length)L.append(ce('p','mu','Aucun groupe pour le moment.'));
+  gs.forEach(g=>{
+    const box=ce('div','grp'),head=ce('div','urow');head.append(ce('b','nm',g.name));
+    const rename=ce('button','','Renommer');rename.onclick=async()=>{const n=await ask('Nouveau nom du groupe',g.name);if(n)try{await J('/api/groups/'+g.id,{method:'PUT',json:{name:n}});await refreshSettingsGroups();}catch(e){alert(e.message);}};
+    const remove=ce('button','','Supprimer');remove.onclick=async()=>{if(!confirm('Supprimer le groupe « '+g.name+' » et ses permissions ?'))return;try{await J('/api/groups/'+g.id,{method:'DELETE'});await refreshSettingsGroups();await load();}catch(e){alert(e.message);}};
+    head.append(rename,remove);box.append(head);const list=ce('div','mem');
+    if(!members.length)list.append(ce('span','mu','Aucun utilisateur standard.'));
+    members.forEach(u=>{const label=ce('label'),cb=ce('input');cb.type='checkbox';cb.value=u.id;cb.checked=g.members.map(Number).includes(Number(u.id));cb.onchange=async()=>{const selected=[...list.querySelectorAll('input:checked')].map(x=>Number(x.value));try{await J('/api/groups/'+g.id,{method:'PUT',json:{members:selected}});await load();}catch(e){alert(e.message);cb.checked=!cb.checked;}};label.append(cb,' '+u.username);list.append(label);});
+    box.append(list);L.append(box);
+  });
+}
+
+// ---- Utilisateurs (root / admin)
+async function refreshUsers() {
+  const list = $('#ulist'); list.innerHTML = '';
+  let us; try { us = await J('/api/users'); } catch(e) { list.append(ce('p','mu','Erreur de chargement : '+e.message)); throw e; }
+  us.forEach(u => {
+    const r = ce('div', 'urow'); r.append(ce('span', 'nm', u.username), ce('span', 'mu', u.role));
+    if (u.role !== 'root' && u.id !== me.id && (me.role === 'root' || u.role === 'user')) {
+      const pw = ce('button', '', 'Mot de passe');
+      pw.onclick = async () => {
+        const p = await ask('Nouveau mot de passe pour ' + u.username, '', 'password');
+        if (p) { await api('/api/users/' + u.id, { method: 'PUT', json: { password: p } }); alert('Mot de passe modifié.'); }
+      };
+      const del = ce('button', '', 'Supprimer');
+      del.onclick = async () => {
+        if (!confirm(`Supprimer le compte « ${u.username} » ? Son espace privé sera supprimé, les fichiers partagés qu'il a créés sont conservés.`)) return;
+        await api('/api/users/' + u.id, { method: 'DELETE' }); refreshUsers();
+      };
+      r.append(pw, del);
+      if (me.role === 'root') {
+        const rl = ce('button', '', u.role === 'admin' ? 'Retirer admin' : 'Passer admin');
+        rl.onclick = async () => { await api('/api/users/' + u.id, { method: 'PUT', json: { role: u.role === 'admin' ? 'user' : 'admin' } }); refreshUsers(); };
+        r.append(rl);
+      }
+    }
+    list.append(r);
+  });
+}
+$('#uform').onsubmit = async e => {
+  e.preventDefault();
+  await api('/api/users', { method: 'POST', json: { username: $('#un').value, password: $('#up2').value, role: $('#uadm').checked ? 'admin' : 'user' } });
+  $('#un').value = ''; $('#up2').value = ''; $('#uadm').checked = false;
+  await refreshUsers();
+};
+
+// ---- Groupes (admin)
+async function refreshGroups() {
+  const L = $('#glist'); L.innerHTML = '';
+  let gs, us; try { [gs, us] = await Promise.all([J('/api/groups'), J('/api/users')]); } catch(e) { L.append(ce('p','mu','Erreur de chargement : '+e.message)); throw e; }
+  const users = us.filter(u => u.role === 'user'); // root et admins ont toujours tous les droits
+  if (!gs.length) L.append(ce('p', 'mu', 'Aucun groupe pour le moment.'));
+  gs.forEach(g => {
+    const b = ce('div', 'grp'), h = ce('div', 'urow'); h.append(ce('b', 'nm', g.name));
+    const rn = ce('button', '', 'Renommer');
+    rn.onclick = async () => { const nm = await ask('Nouveau nom du groupe', g.name); if (nm) { await api('/api/groups/' + g.id, { method: 'PUT', json: { name: nm } }); refreshGroups(); } };
+    const dl = ce('button', '', 'Supprimer');
+    dl.onclick = async () => { if (confirm(`Supprimer le groupe « ${g.name} » et ses permissions ?`)) { await api('/api/groups/' + g.id, { method: 'DELETE' }); refreshGroups(); load(); } };
+    h.append(rn, dl); b.append(h);
+    const m = ce('div', 'mem');
+    if (!users.length) m.append(ce('span', 'mu', 'Aucun utilisateur standard.'));
+    users.forEach(u => {
+      const lb = ce('label'), cb = ce('input'); cb.type = 'checkbox'; cb.value = u.id; cb.checked = g.members.includes(u.id);
+      cb.onchange = async () => {
+        await api('/api/groups/' + g.id, { method: 'PUT', json: { members: [...m.querySelectorAll('input:checked')].map(i => +i.value) } });
+        load();
+      };
+      lb.append(cb, ' ' + u.username); m.append(lb);
+    });
+    b.append(m); L.append(b);
+  });
+}
+$('#gform').onsubmit = async e => {
+  e.preventDefault();
+  await api('/api/groups', { method: 'POST', json: { name: $('#gn').value } });
+  $('#gn').value = ''; await refreshGroups();
+};
+
+// ---- Permissions d'un dossier (admin)
+let prm = null;
+async function perms(n) {
+  const [d, us, gs] = await Promise.all([J(`/api/nodes/${n.id}/perms`), J('/api/users'), J('/api/groups')]);
+  prm = { n, rules: d.rules, from: d.from, us: us.filter(u => u.role === 'user'), gs };
+  $('#ptitle').textContent = 'Permissions : ' + n.name;
+  renderPerms(); $('#pdlg').showModal();
+}
+function renderPerms() {
+  const L = $('#plist'); L.innerHTML = '';
+  const label = r => r.type === 'all' ? '🌍 Tout le monde'
+    : r.type === 'user' ? '👤 ' + (prm.us.find(u => u.id === r.id)?.username || '(compte supprimé)')
+    : '👥 ' + (prm.gs.find(g => g.id === r.id)?.name || '(groupe supprimé)');
+  prm.rules.forEach((r, i) => {
+    const row = ce('div', 'urow'); row.append(ce('span', 'nm', label(r)));
+    const mk = (k, t) => {
+      const lb = ce('label'), cb = ce('input'); cb.type = 'checkbox'; cb.checked = r[k];
+      cb.onchange = () => { r[k] = cb.checked; if (k === 'edit' && r.edit) r.view = true; if (k === 'view' && !r.view) r.edit = false; renderPerms(); };
+      lb.append(cb, ' ' + t); return lb;
+    };
+    const x = ce('button', '', '✕'); x.title = 'Retirer'; x.onclick = () => { prm.rules.splice(i, 1); renderPerms(); };
+    row.append(mk('view', 'Voir'), mk('edit', 'Éditer'), x); L.append(row);
+  });
+  $('#pinfo').textContent = prm.rules.length
+    ? 'Seuls les utilisateurs et groupes listés ont accès à ce dossier et à tout son contenu (les administrateurs ont toujours accès). Sans « Voir », l\'élément est masqué.'
+    : prm.from ? `Aucune règle ici : les règles du dossier « ${prm.from.name} » s'appliquent.` : 'Aucune règle : tout le monde peut voir et modifier ce dossier.';
+  const has = (t, id) => prm.rules.some(r => r.type === t && r.id === id), sel = $('#psub'); sel.innerHTML = '';
+  const opts = [];
+  if (!has('all', 0)) opts.push(['all:0', '🌍 Tout le monde']);
+  prm.us.filter(u => !has('user', u.id)).forEach(u => opts.push(['user:' + u.id, '👤 ' + u.username]));
+  prm.gs.filter(g => !has('group', g.id)).forEach(g => opts.push(['group:' + g.id, '👥 ' + g.name]));
+  opts.forEach(([v, t]) => { const o = ce('option', '', t); o.value = v; sel.append(o); });
+  $('#padd').hidden = !opts.length;
+}
+$('#pplus').onclick = () => { const [t, i] = $('#psub').value.split(':'); prm.rules.push({ type: t, id: +i, view: true, edit: false }); renderPerms(); };
+$('#pclose').onclick = () => $('#pdlg').close();
+$('#psave').onclick = async () => {
+  await api(`/api/nodes/${prm.n.id}/perms`, { method: 'PUT', json: { rules: prm.rules } });
+  $('#pdlg').close(); load();
+};
+
+// ---- Types de fichiers
+const ext = n => (n.split('.').pop() || '').toLowerCase();
+const K = { html: 'html', htm: 'html', md: 'md', markdown: 'md', png: 'img', jpg: 'img', jpeg: 'img', gif: 'img', webp: 'img', svg: 'img', bmp: 'img', ico: 'img', pdf: 'pdf' };
+const TXT = new Set(['txt','css','js','json','csv','tsv','xml','yml','yaml','log','ini','ts','py','sh','bash','c','h','cc','cpp','c++','cxx','hpp','cs','java','go','rs','php','rb','sql','toml','mjs','cjs']);
+const kind = n => K[ext(n)] || (TXT.has(ext(n)) ? 'txt' : 'bin'); // bin = pas d'aperçu : téléchargement
+const icon = n => ext(n) === 'zip' ? '🗜️' : ({ html: '🌐', md: '📝', img: '🖼️', pdf: '📕', txt: '📄', bin: '📦' })[kind(n)];
+const fmt = b => (b = +b) < 1024 ? b + ' o' : b < 1048576 ? (b / 1024).toFixed(1) + ' Ko' : b < 1073741824 ? (b / 1048576).toFixed(1) + ' Mo' : (b / 1073741824).toFixed(2) + ' Go';
+// Emplacement ciblé par une action : { parent: id|null, priv: espace privé ? }
+const tgt = n => !n ? { parent: null, priv: false } : n.pseudo ? { parent: null, priv: n.priv } : { parent: n.type === 'folder' ? n.id : n.parent_id, priv: n.priv };
+const reveal = t => { if (t.parent) open.add(t.parent); open.add(t.priv ? 'pv' : 'sh'); };
+
+// ---- Arborescence
+async function load() {
+  nodes = await J('/api/nodes'); _idx = null;
+  if (cur && !nodes.some(n => n.id === cur.id)) closeView();
+  render();
+}
+function row(n, d) {
+  const isF = n.type === 'folder';
+  const r = ce('div', 'row' + (sel && sel.id === n.id ? ' on' : '') + (n.pseudo ? ' sec' : '') + (!n.pseudo && !n.edit ? ' ro' : ''));
+  r.style.paddingLeft = 10 + d * 16 + 'px'; r.draggable = !n.pseudo;
+  if (!n.pseudo) r.title = (isF ? '' : fmt(n.size)) + (n.edit ? '' : (isF ? '' : ' · ') + 'lecture seule');
+  r.append(ce('span', '', n.pseudo ? (n.priv ? '🔒' : '👥') : isF ? (open.has(n.id) ? '📂' : '📁') : icon(n.name)),
+    ce('span', 'nm', n.name + (n.lock ? ' 🔑' : '')));
+  r.onclick = e => { e.stopPropagation(); sel = n; if (isF) { open.has(n.id) ? open.delete(n.id) : open.add(n.id); render(); } else openNode(n); };
+  r.oncontextmenu = e => { e.preventDefault(); e.stopPropagation(); sel = n; render(); menu(e, n); };
+  r.ondragstart = e => e.dataTransfer.setData('text/plain', n.id);
+  if (isF) {
+    r.ondragover = e => { e.preventDefault(); r.classList.add('dr'); };
+    r.ondragleave = () => r.classList.remove('dr');
+    r.ondrop = e => {
+      e.preventDefault(); e.stopPropagation(); r.classList.remove('dr');
+      const t = tgt(n);
+      if (e.dataTransfer.files.length) return uploadFiles(e.dataTransfer.files, t);
+      move(+e.dataTransfer.getData('text/plain'), t);
+    };
+  }
+  return r;
+}
+function render() {
+  const kids = {};
+  nodes.forEach(n => (kids[n.parent_id || (n.priv ? 'pv' : 'sh')] ??= []).push(n));
+  for (const k in kids) kids[k].sort((a, b) => (a.type === b.type ? 0 : a.type === 'folder' ? -1 : 1) || a.name.localeCompare(b.name));
+  const t = $('#tree'); t.innerHTML = '';
+  const walk = (key, d) => (kids[key] || []).forEach(n => {
+    t.append(row(n, d));
+    if (n.type === 'folder' && open.has(n.id)) walk(n.id, d + 1);
+  });
+  [SH, PV].forEach(p => {
+    t.append(row(p, 0));
+    if (open.has(p.id)) { walk(p.id, 1); if (!kids[p.id]) t.append(ce('div', 'empty', p.priv ? 'Visible uniquement par vous.' : 'Aucun fichier.')); }
+  });
+}
+$('#tree').onclick = () => { sel = null; render(); };
+$('#tree').oncontextmenu = e => { e.preventDefault(); sel = null; render(); menu(e, null); };
+$('#tree').ondragover = e => e.preventDefault();
+$('#tree').ondrop = e => {
+  e.preventDefault();
+  if (e.dataTransfer.files.length) return uploadFiles(e.dataTransfer.files, tgt(null));
+  move(+e.dataTransfer.getData('text/plain'), tgt(null));
+};
+$('#nf').onclick = () => create('file', tgt(sel));
+$('#nd').onclick = () => create('folder', tgt(sel));
+$('#up').onclick = () => pick(tgt(sel));
+
+// ---- Menu contextuel
+function menu(e, n) {
+  const c = $('#ctx'); c.innerHTML = '';
+  const t = tgt(n), items = [], isF = !n || n.type === 'folder', real = n && !n.pseudo;
+  if (isF && (!real || n.edit)) items.push(['Nouveau fichier', () => create('file', t)], ['Nouveau dossier', () => create('folder', t)], ['Importer…', () => pick(t)]);
+  if (real) {
+    if (n.edit) items.push(['Renommer', () => rename(n)]);
+    items.push(['Dupliquer', () => dup(n)], ['Télécharger', () => download(n)], ['Disponible hors ligne', () => cacheOffline(n)], ['Retirer du hors ligne', () => removeOffline(n)], ['Compresser en zip', () => zipIt(n)]);
+    if (n.type === 'file' && n.edit) items.push(['Partager…', () => openShare(n)]);
+    if (n.type === 'file' && ext(n.name) === 'zip') items.push(['Extraire ici', () => extract(n)]);
+    if (me.role !== 'user' && !n.priv && isF) items.push(['Permissions…', () => perms(n)]);
+    if (n.edit) items.push(['Supprimer', () => del(n), 'dg']);
+  }
+  if (!items.length) return;
+  items.forEach(([l, f, cl]) => { const b = ce('button', cl || '', l); b.onclick = () => { c.hidden = true; f(); }; c.append(b); });
+  c.hidden = false;
+  c.style.left = Math.min(e.clientX, innerWidth - 210) + 'px';
+  c.style.top = Math.max(4, Math.min(e.clientY, innerHeight - c.offsetHeight - 8)) + 'px';
+}
+addEventListener('click', () => $('#ctx').hidden = true, true);
+
+// ---- Actions
+function ask(label, val = '', type = 'text', list = false) {
+  return new Promise(res => {
+    const d = $('#dlg'), i = $('#dlgIn'); $('#dlg label').textContent = label;
+    const fl = $('#fl'); fl.innerHTML = '';
+    if (list) { nodes.filter(n => n.type === 'file').forEach(n => fl.append(new Option(n.name.replace(/\.md$/i, '')))); i.setAttribute('list', 'fl'); }
+    else i.removeAttribute('list');
+    i.type = type; i.value = val; d.returnValue = ''; d.showModal(); i.select();
+    d.onclose = () => { const v = d.returnValue === 'ok' ? (type === 'password' ? i.value : i.value.trim()) : null; i.value = ''; res(v); };
+  });
+}
+async function create(type, t) {
+  const name = await ask(type === 'folder' ? 'Nom du dossier' : 'Nom du fichier (ex. page.html, notes.md)');
+  if (!name) return;
+  await api('/api/nodes', { method: 'POST', json: { name, type, parent_id: t.parent, private: t.priv } });
+  reveal(t); await load();
+}
+async function rename(n) {
+  const name = await ask('Nouveau nom', n.name);
+  if (!name || name === n.name) return;
+  await api('/api/nodes/' + n.id, { method: 'PUT', json: { name } });
+  await load();
+  if (cur && cur.id === n.id) { dirty = false; openNode(nodes.find(x => x.id === n.id)); }
+}
+async function dup(n) { await api(`/api/nodes/${n.id}/duplicate`, { method: 'POST' }); await load(); }
+async function del(n) {
+  if (!confirm(`Supprimer « ${n.name} »${n.type === 'folder' ? ' et tout son contenu' : ''} ?`)) return;
+  await api('/api/nodes/' + n.id, { method: 'DELETE' });
+  sel = null; await load();
+}
+async function move(id, t) {
+  if (!id || id === t.parent) return;
+  await api('/api/nodes/' + id, { method: 'PUT', json: { parent_id: t.parent, private: t.priv } });
+  reveal(t); await load();
+}
+async function download(n) {
+  prog('Préparation de ' + n.name, null);
+  try {
+    const r = await api(`/api/nodes/${n.id}/download`);
+    const a = ce('a'); a.href = URL.createObjectURL(await r.blob());
+    a.download = n.name + (n.type === 'folder' ? '.zip' : '');
+    document.body.append(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  } finally { progEnd(); }
+}
+async function zipIt(n) {
+  prog('Compression de ' + n.name, null);
+  try { await api(`/api/nodes/${n.id}/zip`, { method: 'POST' }); } finally { progEnd(); }
+  reveal({ parent: n.parent_id, priv: n.priv }); await load();
+}
+// Extraction : le serveur envoie sa progression ligne par ligne
+async function extract(n) {
+  const lab = 'Extraction de ' + n.name; let id = null;
+  prog(lab, 0);
+  try {
+    const r = await api(`/api/nodes/${n.id}/extract`, { method: 'POST' });
+    const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+    for (;;) {
+      const { done, value } = await rd.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n'); buf = lines.pop();
+      for (const l of lines) {
+        if (!l) continue;
+        const m = JSON.parse(l);
+        if (m.error) throw Error(m.error);
+        if (m.id) id = m.id; else prog(lab, m.p);
+      }
+    }
+  } finally { progEnd(); }
+  reveal({ parent: n.parent_id, priv: n.priv }); if (id) open.add(id);
+  await load();
+}
+function pick(t) { $('#files')._t = t; $('#files').click(); }
+// Import avec progression (XMLHttpRequest : seul moyen de suivre l'envoi)
+function uploadFiles(files, t) {
+  const list = [...files]; if (!list.length) return;
+  const lab = 'Import de ' + (list.length > 1 ? list.length + ' fichiers' : list[0].name);
+  return new Promise((res, rej) => {
+    const fd = new FormData(); fd.append('parent_id', t.parent || ''); fd.append('private', t.priv ? '1' : '');
+    list.forEach(f => fd.append('files', f));
+    const x = new XMLHttpRequest(); x.open('POST', '/api/upload'); x.setRequestHeader('Authorization', 'Bearer ' + token);
+    prog(lab, 0);
+    x.upload.onprogress = e => {
+      if (!e.lengthComputable) return;
+      e.loaded >= e.total ? prog('Enregistrement dans la base de données…', null) : prog(lab, e.loaded * 100 / e.total);
+    };
+    x.onerror = () => rej(Error("Connexion perdue pendant l'import."));
+    x.onload = () => {
+      let d = {}; try { d = JSON.parse(x.responseText); } catch {}
+      if (x.status === 401) { logout(); return rej(Error('Session expirée, reconnectez-vous.')); }
+      x.status < 300 ? res() : rej(Error(d.error || "Erreur pendant l'import."));
+    };
+    x.send(fd);
+  }).finally(progEnd).then(() => { reveal(t); return load(); });
+}
+$('#files').onchange = e => {
+  const f = [...e.target.files], t = e.target._t || tgt(null);
+  e.target.value = '';
+  if (f.length) uploadFiles(f, t);
+};
+
+// ---- Visualisation / édition
+function closeView() {
+  clearTimeout(autosaveTimer); autosaveTimer=null; cur = null; dirty = false; if (url) URL.revokeObjectURL(url); url = null;
+  $('#title').textContent = ''; $('#save').hidden = true; $('#dl').hidden = true; $('#vm').hidden = true;
+  $('#view').innerHTML = '<p id="hint">Sélectionnez un fichier pour l\'ouvrir.</p>';
+}
+function setDirty(d) { dirty = d; $('#title').textContent = cur.name + (d ? ' ●' : '') + (cur.edit ? '' : ' (lecture seule)'); }
+// ---- Aperçu markdown façon Obsidian : [[liens]], ![[images]], callouts, ==surlignage==, #tags, mermaid
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+let _idx = null; // index des fichiers (chemin en minuscules), vidé à chaque rechargement de l'arborescence
+function idx() {
+  if (_idx) return _idx;
+  const by = new Map(nodes.map(n => [n.id, n]));
+  const pth = n => n.parent_id && by.has(n.parent_id) ? pth(by.get(n.parent_id)) + '/' + n.name : n.name;
+  return _idx = nodes.filter(n => n.type === 'file').map(n => ({ n, p: pth(n).toLowerCase(), name: n.name.toLowerCase() }));
+}
+// Retrouve un fichier à partir d'un nom : « page », « page.md », « dossier/page »… (#section ignorée)
+function findNode(t) {
+  t = t.split(/[#^]/)[0].trim().toLowerCase().replace(/^\/+/, ''); if (!t) return null;
+  const L = idx(), strip = s => s.replace(/\.[^./]+$/, '');
+  const x = L.find(x => x.name === t) || L.find(x => x.p === t) || L.find(x => x.name === t + '.md') || L.find(x => x.p === t + '.md')
+    || L.find(x => x.p.endsWith('/' + t)) || L.find(x => x.p.endsWith('/' + t + '.md')) || L.find(x => strip(x.name) === t);
+  return x ? x.n : null;
+}
+const imgCache = new Map();
+async function dataUrl(n) {
+  const k = n.id + ':' + n.updated_at;
+  if (imgCache.has(k)) return imgCache.get(k);
+  const b = await (await api(`/api/nodes/${n.id}/content`)).blob();
+  const u = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
+  imgCache.set(k, u); return u;
+}
+// ---- LaTeX (KaTeX) : $…$, $$…$$, \(…\), \[…\] — les formules sont mises de côté avant le markdown, puis rendues
+function stashMath(text, maths) {
+  const put = (t, d) => `\uE000${maths.push([t.trim(), d]) - 1}\uE001`;
+  const conv = s => s
+    .replace(/\$\$([\s\S]+?)\$\$/g, (_, t) => `\n\n${put(t, true)}\n\n`)
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_, t) => `\n\n${put(t, true)}\n\n`)
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_, t) => put(t, false))
+    .replace(/(?<![\\$])\$(?!\s)([^$\n]+?)(?<!\s)\$(?![\d$])/g, (_, t) => put(t, false)); // « 5 $ et 10 $ » n'est pas une formule
+  const CODE = /```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`/g; // le code n'est jamais touché
+  let out = '', last = 0, m;
+  while ((m = CODE.exec(text))) { out += conv(text.slice(last, m.index)) + m[0]; last = CODE.lastIndex; }
+  return out + conv(text.slice(last));
+}
+const decodeCodeEntities = t => { const x=document.createElement('textarea'); x.innerHTML=t; return x.value; };
+const texHtml = (t, d) => window.katex ? katex.renderToString(t, { displayMode: d, throwOnError: false }) : `<code>${esc(t)}</code>`;
+// Ajouté à la fin d'un fichier html quand on insère une formule (rendu automatique des formules par KaTeX)
+const KX = `\n<link rel="stylesheet" href="/vendor/katex/katex.min.css">\n<script src="/vendor/katex/katex.min.js"><\/script>\n<script src="/vendor/katex/contrib/auto-render.min.js"><\/script>\n<script>renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"\\\\[",right:"\\\\]",display:true},{left:"\\\\(",right:"\\\\)",display:false},{left:"$",right:"$",display:false}]});<\/script>\n`;
+const RE = /!?\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]|==([^=\n]+?)==|(^|\s)#([\p{L}_][\p{L}\d_\/-]*)/gu;
+// Coloration syntaxique locale (aucun script tiers ou CDN). Le même moteur sert aux blocs Markdown et aux fichiers source.
+const LANGS = new Set(['py','python','json','js','javascript','ts','typescript','c','h','cpp','c++','cs','csharp','java','bash','sh','sql','html','css','xml','yaml','yml','toml','go','rust','php','rb']);
+function highlightCode(source, lang='') {
+  const l=String(lang||'').toLowerCase();
+  if(!LANGS.has(l)) return esc(source);
+  const keywords={
+    py:'and as assert async await break class continue def del elif else except False finally for from global if import in is lambda nonlocal not or pass raise return True try while with yield None self',
+    python:'and as assert async await break class continue def del elif else except False finally for from global if import in is lambda nonlocal not or pass raise return True try while with yield None self',
+    js:'async await break case catch class const continue debugger default delete do else export extends finally for from function if import in instanceof let new return super switch this throw try typeof var void while with yield true false null undefined',
+    javascript:'async await break case catch class const continue debugger default delete do else export extends finally for from function if import in instanceof let new return super switch this throw try typeof var void while with yield true false null undefined',
+    json:'true false null', c:'auto break case char const continue default do double else enum extern float for goto if int long register return short signed sizeof static struct switch typedef union unsigned void volatile while',
+    cpp:'alignas auto bool break case catch char class const constexpr continue decltype default delete do double else enum explicit export extern false float for friend goto if inline int long namespace new noexcept nullptr operator private protected public register return short signed sizeof static struct switch template this throw true try typedef typename union unsigned using virtual void volatile while',
+    'c++':'alignas auto bool break case catch char class const constexpr continue decltype default delete do double else enum explicit export extern false float for friend goto if inline int long namespace new noexcept nullptr operator private protected public register return short signed sizeof static struct switch template this throw true try typedef typename union unsigned using virtual void volatile while',
+    cs:'abstract as base bool break byte case catch char checked class const continue decimal default delegate do double else enum event explicit extern false finally fixed float for foreach goto if implicit in int interface internal is lock long namespace new null object operator out override params private protected public readonly ref return sbyte sealed short sizeof stackalloc static string struct switch this throw true try typeof uint ulong unchecked unsafe ushort using virtual void volatile while',
+    csharp:'abstract as base bool break byte case catch char checked class const continue decimal default delegate do double else enum event explicit extern false finally fixed float for foreach goto if implicit in int interface internal is lock long namespace new null object operator out override params private protected public readonly ref return sbyte sealed short sizeof stackalloc static string struct switch this throw true try typeof uint ulong unchecked unsafe ushort using virtual void volatile while',
+    java:'abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for if implements import instanceof int interface long native new package private protected public return short static strictfp super switch synchronized this throw throws transient try void volatile while true false null',
+    bash:'if then else elif fi for while do done case esac function in local export echo read cd exit return',
+    sql:'select from where insert into values update set delete create table primary key foreign references null not and or join left right inner on as order by group having limit',
+    go:'break case chan const continue default defer else fallthrough for func go goto if import interface map package range return select struct switch type var',
+    rust:'as async await break const continue crate dyn else enum extern false fn for if impl in let loop match mod move mut pub ref return self Self static struct super trait true type unsafe use where while'
+  };
+  const kw=new Set((keywords[l]||'').split(/\s+/));
+  const re=/(\/\/[^\n]*|#[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][\w$]*\b|===?|!==?|=>|[{}()[\].,:;])/g;
+  let out='',last=0,m;
+  while((m=re.exec(source))){out+=esc(source.slice(last,m.index));const t=m[0];let cls='';
+    if(/^\/\/|^#|^\/\*/.test(t)) cls='hl-comment';
+    else if(l==='json' && /^"/.test(t) && /^\s*:/.test(source.slice(re.lastIndex))) cls='hl-property';
+    else if(/^['"`]/.test(t)) cls='hl-string';
+    else if(/^\d/.test(t)) cls='hl-number';
+    else if(kw.has(t)) cls='hl-keyword';
+    else if(/^[A-Za-z_$]/.test(t)&&/\s*\(/.test(source.slice(re.lastIndex))) cls='hl-function';
+    else if(/^[{}()[\].,:;]$/.test(t)) cls='hl-property';
+    else if(/^(===?|!==?|=>)$/.test(t)) cls='hl-operator';
+    out+=cls?`<span class="${cls}">${esc(t)}</span>`:esc(t);last=re.lastIndex;
+  }
+  return out+esc(source.slice(last));
+}
+async function renderMd(text) {
+  text = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').replace(/%%[\s\S]*?%%/g, ''); // propriétés YAML et commentaires
+  // Notes de bas de page Obsidian : références [^1] et définitions [^1]: texte.
+  const footnotes = new Map();
+  text = text.replace(/^\[\^([^\]]+)\]:\s*(.+(?:\n(?: {2,}|\t).+)*)/gm, (_, id, body) => { footnotes.set(id, body.replace(/\n[ \t]+/g, ' ')); return ''; });
+  text = text.replace(/\[\^([^\]]+)\]/g, (_, id) => footnotes.has(id) ? `<sup id="fnref-${esc(id)}"><a href="#fn-${esc(id)}">${esc(id)}</a></sup>` : _);
+  const maths = []; text = stashMath(text, maths);
+  let html = marked.parse(text);
+  html = html.replace(/<pre><code(?: class="language-([^"]+)")?>([\s\S]*?)<\/code><\/pre>/g, (_,lang,code) => `<pre class="codeblock"><code>${highlightCode(decodeCodeEntities(code),lang||'')}</code></pre>`);
+  if (footnotes.size) html += '<section class="footnotes"><hr><ol>' + [...footnotes].map(([id,body]) => `<li id="fn-${esc(id)}">${marked.parseInline(body)} <a href="#fnref-${esc(id)}" aria-label="Retour">↩</a></li>`).join('') + '</ol></section>';
+  html = html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g, '<pre class="mermaid">$1</pre>');
+  const doc = new DOMParser().parseFromString('<body>' + html, 'text/html'); // document inerte : rien ne s'exécute ni ne se charge
+  doc.querySelectorAll('script,iframe,object,embed,link,meta,base').forEach(e => e.remove());
+  doc.querySelectorAll('*').forEach(e => [...e.attributes].forEach(a => {
+    if (/^on/i.test(a.name) || (/^(href|src|xlink:href|action|formaction)$/i.test(a.name) && /^\s*javascript:/i.test(a.value))) e.removeAttribute(a.name);
+  }));
+  // ==surligné==, [[liens]], ![[images]], #tags (hors code et liens)
+  const w = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT), todo = [];
+  for (let n; (n = w.nextNode());) if (!n.parentElement.closest('pre,code,a,style') && /\[\[|==|#/.test(n.nodeValue)) todo.push(n);
+  for (const n of todo) {
+    const txt = n.nodeValue; let out = '', last = 0, m; RE.lastIndex = 0;
+    while ((m = RE.exec(txt))) {
+      out += esc(txt.slice(last, m.index)); last = RE.lastIndex;
+      if (m[1] != null) {
+        if (m[0][0] === '!') out += `<img data-embed="${esc(m[1].trim())}" alt="${esc(m[2] || m[1])}">`;
+        else out += `<a href="#" data-wiki="${esc(m[1].trim())}" class="wiki${findNode(m[1]) ? '' : ' unresolved'}">${esc(m[2] || m[1].trim())}</a>`;
+      } else if (m[3] != null) out += `<mark>${esc(m[3])}</mark>`;
+      else out += esc(m[4]) + `<span class="tag">#${esc(m[5])}</span>`;
+    }
+    out += esc(txt.slice(last));
+    const t = doc.createElement('template'); t.innerHTML = out; n.replaceWith(t.content);
+  }
+  // callouts : > [!note] Titre
+  doc.querySelectorAll('blockquote').forEach(bq => {
+    const p = bq.firstElementChild; if (!p || p.tagName !== 'P') return;
+    const m = p.innerHTML.match(/^\[!([\w-]+)\][+-]?[ \t]*([^\n]*)\n?([\s\S]*)$/); if (!m) return;
+    const type = m[1].toLowerCase(), div = doc.createElement('div'), title = doc.createElement('div'), body = doc.createElement('div');
+    div.className = 'callout c-' + type; title.className = 'ct'; title.innerHTML = m[2] || cap(type);
+    if (m[3].trim()) { const q = doc.createElement('p'); q.innerHTML = m[3]; body.append(q); }
+    p.remove(); [...bq.childNodes].forEach(x => body.append(x));
+    div.append(title, body); bq.replaceWith(div);
+  });
+  // images : ![[photo.png]] et ![](photo.png) pointent vers les fichiers de l'arborescence
+  await Promise.all([...doc.querySelectorAll('img')].map(async img => {
+    const emb = img.dataset.embed, src = img.getAttribute('src') || '';
+    if (emb == null && /^(https?:|data:|blob:|\/\/)/i.test(src)) return;
+    let name = emb != null ? emb : src; try { name = decodeURIComponent(name); } catch {}
+    const nd = findNode(name);
+    if (nd && kind(nd.name) === 'img') { try { img.setAttribute('src', await dataUrl(nd)); img.removeAttribute('data-embed'); return; } catch {} }
+    const el = doc.createElement(nd ? 'a' : 'span');
+    if (nd) { el.setAttribute('href', '#'); el.className = 'wiki'; el.dataset.wiki = name; el.textContent = name; }
+    else { el.className = 'unresolved'; el.textContent = 'Image introuvable : ' + name; }
+    img.replaceWith(el);
+  }));
+  return doc.body.innerHTML.replace(/\uE000(\d+)\uE001/g, (_, i) => texHtml(...maths[i])); // formules rendues en dernier
+}
+// Page de l'aperçu markdown (chargée une seule fois : le contenu est mis à jour par message, le défilement est conservé)
+const SHELL = `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/vendor/katex/katex.min.css"><style id="base-preview">
+:root{color-scheme:light;--pv-tx:#16212b;--pv-muted:#586674;--pv-panel:#f1f3f5;--pv-line:#cbd5df;--pv-ac:#1b6ef3}body{font:16px/1.65 system-ui,sans-serif;max-width:780px;margin:1.5rem auto;padding:0 1.2rem;color:var(--pv-tx);background:var(--pv-bg,#fff)}
+pre,code{background:var(--pv-panel);border-radius:4px}pre.codeblock{color:var(--pv-tx)}.codeblock code{background:transparent;padding:0}code{padding:.1em .35em}pre{padding:1em;overflow:auto}pre code{padding:0}
+pre.mermaid{background:none;text-align:center}
+img{max-width:100%}blockquote{border-left:4px solid var(--pv-line);margin-left:0;padding-left:1em;color:var(--pv-muted)}
+table{border-collapse:collapse}td,th{border:1px solid var(--pv-line);padding:.3em .7em}
+mark{background:#ffe066;padding:0 .15em;border-radius:3px}
+a.wiki{color:#1b6ef3;text-decoration:none;border-bottom:1px solid #1b6ef3}
+a.unresolved,.unresolved{color:#8a94a0;border-bottom:1px dashed #8a94a0;text-decoration:none}
+.tag{background:#e7f0ff;color:#1b6ef3;border-radius:10px;padding:0 .55em;font-size:.9em}
+.callout{--c:#1b6ef3;border-left:4px solid var(--c);background:color-mix(in srgb,var(--c) 10%,var(--pv-bg,#fff));border-radius:6px;padding:.5rem 1rem;margin:1rem 0}
+.callout .ct{font-weight:700;color:var(--c)}.callout p{margin:.4rem 0}
+.c-tip,.c-success,.c-check{--c:#2b9a5b}.c-warning,.c-caution{--c:#e08a00}.c-danger,.c-error,.c-bug,.c-failure{--c:#d6336c}
+.c-question,.c-help{--c:#c9a400}.c-example{--c:#7950f2}.c-quote,.c-cite{--c:#868e96}
+.katex-display{overflow-x:auto;overflow-y:hidden;padding:2px 0}
+:root[data-theme="dark"] .settings .preview{color:var(--tx)}
+@media(max-width:700px){#view[data-m=live]{flex-direction:column}#view[data-m=live]>.ed{flex-basis:50%}#view[data-m=live]>iframe{flex-basis:50%}}
+</style><div id="c"></div><script src="/vendor/mermaid.js"><\/script><script>
+if(window.mermaid)mermaid.initialize({startOnLoad:false,securityLevel:'strict'});
+const c=document.getElementById('c');
+function theme(d){const dark=d.theme==='dark';document.documentElement.style.colorScheme=dark?'dark':'light';document.documentElement.style.setProperty('--pv-bg',dark?'#18212a':'#fff');document.documentElement.style.setProperty('--pv-tx',dark?'#e4eaf0':'#16212b');document.documentElement.style.setProperty('--pv-muted',dark?'#aab7c4':'#586674');document.documentElement.style.setProperty('--pv-panel',dark?'#222e39':'#f1f3f5');document.documentElement.style.setProperty('--pv-line',dark?'#40505e':'#cbd5df');document.body.style.background='var(--pv-bg)';document.body.style.color='var(--pv-tx)';document.getElementById('user-css')?.remove();if(d.css){const s=document.createElement('style');s.id='user-css';s.textContent=d.css;document.head.append(s)}}
+addEventListener('message',async e=>{
+  if(e.source!==parent||!e.data||e.data.type!=='render')return;
+  const y=scrollY;theme(e.data);c.innerHTML=e.data.html;
+  if(window.mermaid){try{await mermaid.run({nodes:c.querySelectorAll('pre.mermaid')})}catch(x){}}
+  scrollTo(0,y);
+});
+addEventListener('click',e=>{
+  const a=e.target.closest('a');if(!a)return;e.preventDefault();
+  const h=a.getAttribute('href')||'';
+  if(a.dataset.wiki!=null)parent.postMessage({wiki:a.dataset.wiki},'*');
+  else if(h[0]==='#'){const t=document.getElementById(decodeURIComponent(h.slice(1)));if(t)t.scrollIntoView()}
+  else if(/^https?:/i.test(h))parent.postMessage({ext:h},'*');
+});
+parent.postMessage({ready:1},'*');
+<\/script>`;
+// Messages de l'aperçu markdown : clic sur un lien [[fichier]] ou un lien externe
+addEventListener('message', e => {
+  const f = $('#view iframe'); if (!f || !f._md || e.source !== f.contentWindow) return;
+  const d = e.data || {};
+  if (d.ready) f._ready();
+  else if (typeof d.wiki === 'string') followWiki(d.wiki);
+  else if (typeof d.ext === 'string' && /^https?:\/\//i.test(d.ext)) window.open(d.ext, '_blank', 'noopener');
+});
+// Suivre un lien [[fichier]] : ouvre le fichier, ou propose de le créer s'il n'existe pas (comme Obsidian)
+async function followWiki(t) {
+  const n = findNode(t);
+  if (n) { for (let p = n.parent_id; p;) { open.add(p); p = (nodes.find(x => x.id === p) || {}).parent_id; } return openNode(n); }
+  if (!cur) return;
+  let name = t.split(/[#^]/)[0].trim().split('/').pop(); if (!name) return;
+  if (!/\.[a-z0-9]+$/i.test(name)) name += '.md';
+  if (!confirm(`Le fichier « ${name} » n'existe pas. Le créer dans ce dossier ?`)) return;
+  const d = await J('/api/nodes', { method: 'POST', json: { name, type: 'file', parent_id: cur.parent_id, private: cur.priv } });
+  await load(); const nn = nodes.find(x => x.id === d.id); if (nn) openNode(nn);
+}
+
+// ---- Barre d'outils de l'éditeur (markdown et html)
+const MM = {
+  flow: 'graph TD\n  A[Début] --> B{Choix}\n  B -->|Oui| C[Action 1]\n  B -->|Non| D[Action 2]',
+  seq: 'sequenceDiagram\n  Alice->>Bob: Bonjour\n  Bob-->>Alice: Salut !',
+  cls: 'classDiagram\n  class Animal {\n    +nom\n    +manger()\n  }\n  Animal <|-- Chien',
+  state: 'stateDiagram-v2\n  [*] --> Actif\n  Actif --> Inactif\n  Inactif --> [*]',
+  gantt: 'gantt\n  title Planning\n  dateFormat YYYY-MM-DD\n  section Phase 1\n  Tâche A :a1, 2026-11-03, 7d\n  Tâche B :after a1, 5d',
+  pie: 'pie title Répartition\n  "A" : 40\n  "B" : 60',
+};
+const CO = [['note', 'Note'], ['info', 'Info'], ['tip', 'Astuce'], ['success', 'Succès'], ['question', 'Question'], ['warning', 'Attention'], ['danger', 'Danger'], ['example', 'Exemple'], ['quote', 'Citation']];
+async function askTable() {
+  const v = await ask('Taille du tableau (colonnes x lignes)', '3x3'), m = (v || '').match(/^(\d+)\s*[x×]\s*(\d+)$/i);
+  return m ? [Math.min(+m[1], 12) || 1, Math.min(+m[2], 50) || 1] : null;
+}
+const mdTable = (c, r) => {
+  const row = f => '| ' + Array.from({ length: c }, (_, i) => f(i)).join(' | ') + ' |';
+  return '\n' + [row(i => 'Colonne ' + (i + 1)), row(() => '---'), ...Array.from({ length: r }, () => row(() => '   '))].join('\n') + '\n';
+};
+const htmlTable = (c, r) => {
+  const cell = (t, x) => `<${t} style="border:1px solid #999;padding:4px 8px">${x}</${t}>`, rep = f => Array.from({ length: c }, (_, i) => f(i)).join('');
+  return `\n<table style="border-collapse:collapse">\n  <thead><tr>${rep(i => cell('th', 'Colonne ' + (i + 1)))}</tr></thead>\n  <tbody>\n${Array.from({ length: r }, () => '    <tr>' + rep(() => cell('td', '&nbsp;')) + '</tr>').join('\n')}\n  </tbody>\n</table>\n`;
+};
+// Outils de manipulation du texte sélectionné (execCommand conserve l'historique Annuler/Rétablir)
+function editorTools(ta) {
+  const sel = () => ({ t: ta.value.slice(ta.selectionStart, ta.selectionEnd) });
+  const ins = (text, a, b) => {
+    ta.focus(); const s = ta.selectionStart;
+    if (!document.execCommand('insertText', false, text)) { ta.setRangeText(text, s, ta.selectionEnd, 'end'); ta.dispatchEvent(new Event('input')); }
+    if (a != null) ta.setSelectionRange(s + a, s + (b ?? a));
+  };
+  const wrap = (pre, post, ph = 'texte') => { const x = sel().t || ph; ins(pre + x + post, pre.length, pre.length + x.length); };
+  const block = fn => { // applique fn aux lignes entières de la sélection
+    const v = ta.value, s = ta.selectionStart; let e = ta.selectionEnd;
+    if (e > s && v[e - 1] === '\n') e--;
+    const a = s ? v.lastIndexOf('\n', s - 1) + 1 : 0; let b = v.indexOf('\n', e); if (b < 0) b = v.length;
+    ta.setSelectionRange(a, b);
+    const out = fn(v.slice(a, b).split('\n')); ins(out, 0, out.length);
+  };
+  return { sel, ins, wrap, block };
+}
+function toolbar(ta, mode) {
+  const md = mode === 'md', bar = ce('div', 'etb'), E = editorTools(ta);
+  bar.onmousedown = e => { if (!['SELECT', 'INPUT', 'OPTION'].includes(e.target.tagName)) e.preventDefault(); }; // garde le focus et la sélection dans le texte
+  const btn = (label, title, fn, css) => { const b = ce('button', '', label); b.type = 'button'; b.title = title; if (css) b.style.cssText = css; b.onclick = fn; bar.append(b); return b; };
+  const dd = (label, opts, fn) => { const s = ce('select'); s.title = label; s.append(new Option(label, '')); opts.forEach(([v, t]) => s.append(new Option(t, v))); s.onchange = () => { const v = s.value; s.value = ''; if (v) fn(v); }; bar.append(s); };
+  const col = (v, title) => { const c = ce('input'); c.type = 'color'; c.value = v; c.title = title; bar.append(c); return c; };
+  const sep = () => bar.append(ce('span', 'sep'));
+  const T = md ? {
+    h: n => E.block(ls => ls.map(l => { const m = l.match(/^(#{1,6})\s+/); return m && m[1].length === n ? l.slice(m[0].length) : (n ? '#'.repeat(n) + ' ' : '') + l.replace(/^#{1,6}\s+/, ''); }).join('\n')),
+    b: () => E.wrap('**', '**'), i: () => E.wrap('*', '*'), u: () => E.wrap('<u>', '</u>'), s: () => E.wrap('~~', '~~'),
+    hl: c => c === '#ffe066' ? E.wrap('==', '==') : E.wrap(`<mark style="background:${c}">`, '</mark>'),
+    tc: c => E.wrap(`<span style="color:${c}">`, '</span>'),
+    ctr: () => E.block(ls => '<div style="text-align:center">\n\n' + (ls.join('\n').trim() || 'Texte centré') + '\n\n</div>'),
+    ul: () => E.block(ls => ls.map(l => '- ' + l).join('\n')),
+    ol: () => E.block(ls => ls.map((l, i) => `${i + 1}. ${l}`).join('\n')),
+    task: () => E.block(ls => ls.map(l => '- [ ] ' + l).join('\n')),
+    quote: () => E.block(ls => ls.map(l => '> ' + l).join('\n')),
+    code: () => E.wrap('`', '`', 'code'),
+    pre: () => E.block(ls => '```\n' + ls.join('\n') + '\n```'),
+    hr: () => E.ins('\n\n---\n\n'),
+    link: async () => { const u = await ask('Adresse du lien (https://…)', 'https://'); if (u) E.wrap('[', `](${u})`, 'lien'); },
+    img: async () => {
+      const u = await ask("Nom d'un fichier image de l'arborescence, ou adresse (https://…)", '', 'text', true); if (!u) return;
+      const nd = findNode(u), x = nd && kind(nd.name) === 'img' ? `![[${nd.name}]]` : `![](${u})`; E.ins(x, x.length);
+    },
+    tbl: async () => { const d = await askTable(); if (d) E.ins(mdTable(...d)); },
+    mm: k => E.sel().t ? E.block(ls => '```mermaid\n' + ls.join('\n') + '\n```') : E.ins('\n```mermaid\n' + MM[k] + '\n```\n'),
+  } : {
+    h: n => n ? E.wrap(`<h${n}>`, `</h${n}>`, 'Titre') : E.wrap('<p>', '</p>', 'Paragraphe'),
+    b: () => E.wrap('<strong>', '</strong>'), i: () => E.wrap('<em>', '</em>'), u: () => E.wrap('<u>', '</u>'), s: () => E.wrap('<s>', '</s>'),
+    hl: c => E.wrap(`<mark style="background:${c}">`, '</mark>'),
+    tc: c => E.wrap(`<span style="color:${c}">`, '</span>'),
+    ctr: () => E.wrap('<div style="text-align:center">', '</div>', 'Texte centré'),
+    ul: () => E.block(ls => '<ul>\n' + ls.map(l => '  <li>' + l + '</li>').join('\n') + '\n</ul>'),
+    ol: () => E.block(ls => '<ol>\n' + ls.map(l => '  <li>' + l + '</li>').join('\n') + '\n</ol>'),
+    quote: () => E.wrap('<blockquote>', '</blockquote>'),
+    code: () => E.wrap('<code>', '</code>', 'code'),
+    pre: () => E.wrap('<pre><code>', '</code></pre>', 'code'),
+    hr: () => E.ins('\n<hr>\n'),
+    link: async () => { const u = await ask('Adresse du lien (https://…)', 'https://'); if (u) E.wrap(`<a href="${esc(u)}">`, '</a>', 'lien'); },
+    img: async () => { const u = await ask("Adresse de l'image (https://…)", 'https://'); if (u) { const x = `<img src="${esc(u)}" alt="">`; E.ins(x, x.length); } },
+    tbl: async () => { const d = await askTable(); if (d) E.ins(htmlTable(...d)); },
+    mm: k => { // le script mermaid est ajouté une seule fois à la fin du document
+      const need = !/vendor\/mermaid/.test(ta.value);
+      E.ins(`\n<pre class="mermaid">\n${MM[k]}\n</pre>\n`);
+      if (need) {
+        const i = ta.value.lastIndexOf('</body>'), p = i < 0 ? ta.value.length : i;
+        ta.setRangeText('\n<script src="/vendor/mermaid.js"><\/script>\n<script>mermaid.initialize({startOnLoad:true});<\/script>\n', p, p, 'preserve');
+        ta.dispatchEvent(new Event('input'));
+      }
+    },
+  };
+  dd('Titre', [[1, 'Titre 1'], [2, 'Titre 2'], [3, 'Titre 3'], [4, 'Titre 4'], [5, 'Titre 5'], [6, 'Titre 6'], [0, 'Paragraphe']], v => T.h(+v));
+  sep();
+  btn('B', 'Gras (Ctrl+B)', T.b, 'font-weight:700'); btn('I', 'Italique (Ctrl+I)', T.i, 'font-style:italic');
+  btn('U', 'Souligné (Ctrl+U)', T.u, 'text-decoration:underline'); btn('S', 'Barré', T.s, 'text-decoration:line-through');
+  sep();
+  const hb = btn('Surligner', md ? 'Surligner : ==texte== en jaune (syntaxe Obsidian), sinon <mark> avec la couleur choisie' : 'Surligner avec la couleur choisie', () => T.hl(hc.value), 'background:#ffe066;color:#16212b');
+  const hc = col('#ffe066', 'Couleur du surlignage'); hc.oninput = () => hb.style.background = hc.value;
+  const tb = btn('A', 'Appliquer la couleur du texte', () => T.tc(tc.value), 'font-weight:700;color:#e03131');
+  const tc = col('#e03131', 'Couleur du texte'); tc.oninput = () => tb.style.color = tc.value;
+  btn('Centrer', 'Centrer le texte', T.ctr);
+  sep();
+  btn('•', 'Liste à puces', T.ul); btn('1.', 'Liste numérotée', T.ol);
+  if (md) btn('☑', 'Liste de tâches', T.task);
+  btn('❝', 'Citation', T.quote);
+  sep();
+  btn('<>', 'Code', T.code); btn('{ }', 'Bloc de code', T.pre); btn('―', 'Séparateur', T.hr);
+  sep();
+  btn('Lien', 'Insérer un lien', T.link);
+  if (md) btn('[[ ]]', 'Lien vers un autre fichier (comme Obsidian) ; le texte sélectionné devient l\'alias', async () => {
+    const nm = await ask('Nom du fichier à lier', '', 'text', true); if (!nm) return;
+    const t = E.sel().t, x = `[[${nm}${t ? '|' + t : ''}]]`; E.ins(x, x.length);
+  });
+  btn('Image', 'Insérer une image', T.img); btn('Tableau', 'Insérer un tableau', T.tbl);
+  if (md) btn('[^n]', 'Insérer une note de bas de page', () => { const id = String((ta.value.match(/^\[\^(\d+)\]:/gm)||[]).length + 1); E.ins(`[^${id}]`); ta.setRangeText(`\n\n[^${id}]: Définition de la note\n`, ta.value.length, ta.value.length, 'end'); ta.dispatchEvent(new Event('input')); });
+  sep();
+  if (md) dd('Callout', CO, t => E.block(ls => `> [!${t}] ${CO.find(c => c[0] === t)[1]}\n` + (ls.join('\n').trim() || 'Texte').split('\n').map(l => '> ' + l).join('\n')));
+  const LX = { eq: 'E = mc^2', frac: '\\frac{a}{b}', sqrt: '\\sqrt{x}', sum: '\\sum_{i=1}^{n} x_i', int: '\\int_{a}^{b} f(x)\\,dx', lim: '\\lim_{x \\to \\infty} f(x)', mat: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' };
+  const tex = k => {
+    if (md) {
+      if (k === 'inline') return E.wrap('$', '$', 'x');
+      if (k === 'block') return E.block(ls => '$$\n' + (ls.join('\n').trim() || LX.eq) + '\n$$');
+      return E.ins(k === 'mat' ? '\n$$\n' + LX.mat + '\n$$\n' : '$' + LX[k] + '$');
+    }
+    if (k === 'inline') E.wrap('\\(', '\\)', 'x');
+    else if (k === 'block' || k === 'mat') E.ins('\n\\[' + (k === 'mat' ? LX.mat : E.sel().t || LX.eq) + '\\]\n');
+    else E.ins('\\(' + LX[k] + '\\)');
+    if (!/vendor\/katex/.test(ta.value)) { // html : les scripts KaTeX sont ajoutés une seule fois en fin de document
+      const i = ta.value.lastIndexOf('</body>'), p = i < 0 ? ta.value.length : i;
+      ta.setRangeText(KX, p, p, 'preserve'); ta.dispatchEvent(new Event('input'));
+    }
+  };
+  dd('Formule', [['inline', 'En ligne'], ['block', 'En bloc'], ['frac', 'Fraction'], ['sqrt', 'Racine'], ['sum', 'Somme'], ['int', 'Intégrale'], ['lim', 'Limite'], ['mat', 'Matrice']], tex);
+  dd('Mermaid', [['flow', 'Organigramme'], ['seq', 'Séquence'], ['cls', 'Classes'], ['state', 'États'], ['gantt', 'Gantt'], ['pie', 'Camembert']], T.mm);
+  ta.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const f = { b: T.b, i: T.i, u: T.u }[e.key.toLowerCase()];
+    if (f) { e.preventDefault(); f(); }
+  });
+  return bar;
+}
+// ---- Mode d'affichage : éditeur seul / les deux / aperçu seul
+function setMode(m) {
+  if(cur && kind(cur.name)!=='md' && (m==='live'||m==='split')) m='ed';
+  localStorage.setItem('vm', m); $('#view').dataset.m = m;
+  document.querySelectorAll('#vm button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  const f = $('#view iframe'); if (f && f._refresh) f._refresh(); // mermaid doit être dessiné quand l'aperçu est visible
+}
+$('#vm').onclick = e => { const m = e.target.dataset && e.target.dataset.m; if (m) setMode(m); };
+
+
+const CODE_EXTS=new Set(['py','json','js','mjs','cjs','ts','c','h','cc','cpp','cxx','hpp','cs','java','go','rs','sh','bash','sql','php','rb','css','xml','yaml','yml','toml']);
+const langForExt=x=>({py:'python',js:'javascript',mjs:'javascript',cjs:'javascript',ts:'typescript',cc:'cpp',cxx:'cpp',hpp:'cpp',cs:'csharp',rs:'rust',sh:'bash',yml:'yaml'}[x]||x);
+function setupCodeEditor(ta, extName) {
+  const wrap=ce('div','code-editor'), pre=ce('pre'); const code=ce('code');pre.append(code);wrap.append(pre,ta);ta.classList.add('code-input');
+  const paint=()=>{code.innerHTML=highlightCode(ta.value,langForExt(extName))+'\n';pre.scrollTop=ta.scrollTop;pre.scrollLeft=ta.scrollLeft;};
+  ta.addEventListener('input',paint);ta.addEventListener('scroll',()=>{pre.scrollTop=ta.scrollTop;pre.scrollLeft=ta.scrollLeft;});
+  ta.addEventListener('keydown',e=>{
+    if(e.key==='Tab'){e.preventDefault();const a=ta.selectionStart,b=ta.selectionEnd;const before=ta.value.slice(0,a),line=before.slice(before.lastIndexOf('\n')+1);const indent=(line.match(/^\s*/)||[''])[0];
+      if(a!==b){const selected=ta.value.slice(a,b).split('\n').map(x=>'    '+x).join('\n');ta.setRangeText(selected,a,b,'select');}
+      else{ta.setRangeText('    ',a,b,'end');}ta.dispatchEvent(new Event('input'));return;}
+    if(e.key==='Enter'){const a=ta.selectionStart,b=ta.selectionEnd;const line=ta.value.slice(0,a).split('\n').pop();const indent=(line.match(/^\s*/)||[''])[0];let extra='';const l=langForExt(extName);if((l==='python'||l==='json'||l==='javascript'||l==='c'||l==='cpp'||l==='csharp')&&/[{\[:]\s*$/.test(line))extra='    ';e.preventDefault();ta.setRangeText('\n'+indent+extra,a,b,'end');ta.dispatchEvent(new Event('input'));}
+  });
+  paint();return wrap;
+}
+
+async function openNode(n) {
+  if (dirty && !confirm('Abandonner les modifications non enregistrées ?')) return;
+  clearTimeout(autosaveTimer); autosaveTimer=null;
+  const k = kind(n.name), V = $('#view');
+  cur = n; sel = n; dirty = false; if (url) URL.revokeObjectURL(url); url = null; render();
+  V.innerHTML = ''; setDirty(false); $('#dl').hidden = false; $('#vm').hidden = true;
+  $('#save').hidden = !(['html', 'md', 'txt'].includes(k) && n.edit); $('#share').hidden = !(n.type === 'file' && n.edit);
+  if (k === 'bin') { // pas d'aperçu : taille + téléchargement (+ extraction pour un zip)
+    const p = ce('div', 'bin'); p.append(ce('b', '', n.name), ce('span', 'mu', fmt(n.size) + ' · aperçu indisponible'));
+    const b = ce('button', 'pri', 'Télécharger'); b.onclick = () => download(n); p.append(b);
+    if (ext(n.name) === 'zip' && n.edit) { const x = ce('button', '', 'Extraire ici'); x.onclick = () => extract(n); p.append(x); }
+    V.append(p); return;
+  }
+  let r;
+  try { r = await api(`/api/nodes/${n.id}/content`); window.__fbiOffline=false; updateOnlineBadge(); if(n.type==='file'){const blob=await r.clone().blob();offlinePut({id:n.id,name:n.name,mime:n.mime||blob.type||'text/plain',content:blob,updated_at:n.updated_at}).catch(()=>{});} }
+  catch(e){const cached=await offlineGet(n.id);if(!cached)throw e;window.__fbiOffline=true;updateOnlineBadge();r=new Response(cached.content,{headers:{'Content-Type':cached.mime||'text/plain'}});}
+  if (k === 'img') {
+    url = URL.createObjectURL(await r.blob()); const i = ce('img'); i.src = url; i.alt = n.name; V.append(i);
+  } else if (k === 'pdf') {
+    url = URL.createObjectURL(new Blob([await r.arrayBuffer()], { type: 'application/pdf' }));
+    const f = ce('iframe'); f.src = url; V.append(f);
+  } else {
+    const ta = ce('textarea'); ta.value = await r.text(); ta.spellcheck = false; ta.readOnly = !n.edit;
+    const ex=ext(n.name), isCode=CODE_EXTS.has(ex);
+    if (k === 'txt' && !isCode) { const ed=ce('div','ed');ed.append(ta,ce('div','autosave','Enregistrement automatique : toutes les minutes'));V.append(ed);ta.oninput = () => {setDirty(true);scheduleAutosave();}; return; }
+    $('#vm').hidden = false; setMode(localStorage.getItem('vm') === 'ed' ? 'ed' : 'pv');
+    const ed = ce('div', 'ed'); if (n.edit && !isCode) ed.append(toolbar(ta, k));
+    if(isCode){const wrap=setupCodeEditor(ta,ex);ed.append(wrap);}else ed.append(ta);
+    const status=ce('div','autosave','Enregistrement automatique : toutes les minutes');ed.append(status);
+    const f = ce('iframe'); f.setAttribute('sandbox', '');
+    let previewFrame=f;
+    if(k==='html'){
+      const shell=ce('div','preview-shell'),head=ce('div','preview-head'),refresh=ce('button','','↻ Actualiser l’aperçu');
+      refresh.type='button';refresh.onclick=()=>upd&&upd();head.append(refresh);shell.append(head,f);previewFrame=f;V.append(ed,shell);
+    } else V.append(ed,f);
+    let upd;
+    if (isCode) upd = () => { const l=langForExt(ex); const html=`<!doctype html><meta charset=\"utf-8\"><style>body{font:14px/1.65 ui-monospace,monospace;padding:20px;background:${localStorage.getItem('fw-theme')==='dark'?'#18212a':'#fff'};color:${localStorage.getItem('fw-theme')==='dark'?'#e4eaf0':'#16212b'}}pre{white-space:pre-wrap;overflow-wrap:anywhere}.hl-keyword{color:#c678dd}.hl-string{color:#98c379}.hl-number{color:#d19a66}.hl-comment{color:#7f8c98;font-style:italic}.hl-function{color:#61afef}.hl-property{color:#e5c07b}.hl-operator{color:#56b6c2}</style><pre>${highlightCode(ta.value,l)}</pre>`;f.srcdoc=html; };
+    else if (k === 'html') upd = () => { const theme=localStorage.getItem('fw-theme')||'light', css=localStorage.getItem('fw-custom-css')||''; const safe=ta.value.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,'').replace(/<script\b[^>]*\/?\s*>/gi,'').replace(/\s+on[a-z]+\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s>]+)/gi,'').replace(/(href|src|xlink:href)\s*=\s*([\"'])\s*javascript:[\s\S]*?\2/gi,'$1=\"#\"'); const csp='<meta http-equiv=\"Content-Security-Policy\" content=\"default-src \'none\'; img-src data: blob:; style-src \'unsafe-inline\'; font-src data:;\">'; const base=`${csp}<style id=\"fw-theme\">:root{color-scheme:${theme}}body{background:${theme==='dark'?'#18212a':'#fff'};color:${theme==='dark'?'#e4eaf0':'#16212b'}}</style><style id=\"fw-user-css\">${css.replace(/<\/style/gi,'<\\/style')}</style>`; f.srcdoc = /<head[^>]*>/i.test(safe) ? safe.replace(/<head[^>]*>/i,m=>m+base) : base+safe; };
+    else { // markdown : page d'aperçu chargée une fois, contenu envoyé par message
+      f.setAttribute('sandbox', 'allow-scripts'); // seuls les scripts internes de l'aperçu Markdown sont autorisés
+      let ready = false, pend = null, seq = 0; f._md = true;
+      const post = h => { f._lastHtml=h; return ready ? f.contentWindow.postMessage({ type: 'render', html: h, theme: localStorage.getItem('fw-theme') || 'light', css: localStorage.getItem('fw-custom-css') || '' }, '*') : (pend = h); };
+      f._ready = () => { ready = true; if (pend != null) { post(pend); pend = null; } };
+      upd = async () => {
+        if ($('#view').dataset.m === 'ed') return;
+        const my = ++seq; let h;
+        try { h = await renderMd(ta.value); } catch (e) { h = '<pre>' + esc(String(e)) + '</pre>'; }
+        if (my === seq) post(h);
+      };
+      f._refresh = upd; f.srcdoc = SHELL;
+    }
+    ta.oninput = () => { setDirty(true); scheduleAutosave(); clearTimeout(tm); tm = setTimeout(upd, 200); };
+    upd();
+  }
+}
+async function save() {
+  const ta = $('#view textarea'); if (!cur || !ta || !cur.edit || autosaveBusy) return;
+  const snapshot=ta.value, fileId=cur.id; autosaveBusy=true; try { await api('/api/nodes/' + fileId, { method: 'PUT', json: { content: snapshot } }); if(cur?.id===fileId){setDirty(ta.value!==snapshot);const st=$('.autosave');if(st)st.textContent='Enregistré · '+new Date().toLocaleTimeString();if(dirty)scheduleAutosave();} await load(); } finally { autosaveBusy=false; }
+}
+function scheduleAutosave(){if(autosaveTimer||!cur?.edit)return;autosaveTimer=setTimeout(async()=>{autosaveTimer=null;if(dirty){try{await save();}catch(e){const st=$('.autosave');if(st)st.textContent='Échec de la sauvegarde · '+e.message;if(dirty)scheduleAutosave();}}},60000);}
+$('#save').onclick = save;
+$('#dl').onclick = () => cur && download(cur);
+addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); } });
+addEventListener('beforeunload', e => { if (dirty) e.preventDefault(); });
+
+show().then(() => { applyTheme(); updateOnlineBadge(); });
+</script>
+</body>
+</html>
