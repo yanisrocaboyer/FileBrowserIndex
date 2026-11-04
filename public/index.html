@@ -661,7 +661,7 @@ function uploadFiles(files, t) {
   const lab = 'Import de ' + (list.length > 1 ? list.length + ' fichiers' : list[0].name);
   return new Promise((res, rej) => {
     const fd = new FormData(); fd.append('parent_id', t.parent || ''); fd.append('private', t.priv ? '1' : '');
-    list.forEach(f => fd.append('files', f));
+    list.forEach(f => fd.append('files[]', f));
     const x = new XMLHttpRequest(); x.open('POST', '/api/upload'); x.setRequestHeader('Authorization', 'Bearer ' + token);
     prog(lab, 0);
     x.upload.onprogress = e => {
