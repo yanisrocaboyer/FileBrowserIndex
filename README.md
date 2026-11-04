@@ -1,127 +1,96 @@
 # File Browser Index (FBI)
 
-**File Browser Index** est un gestionnaire de fichiers auto-hébergé, accessible depuis un navigateur et également utilisable comme application de bureau avec Electron.
+**File Browser Index** est un gestionnaire de fichiers auto-hébergé, utilisable depuis un navigateur ou comme application de bureau Electron.
 
-L'objectif est de proposer un espace de stockage organisé en dossiers et fichiers, avec plusieurs comptes, des permissions et des liens de partage.
+Chaque personne peut héberger sa propre instance et choisir entre deux distributions serveur :
+- **Node.js + MySQL** : backend Express utilisé par Electron et la version serveur historique.
+- **PHP + MySQL** : backend PHP autonome pour les hébergements mutualisés ne proposant pas Node.js.
 
 ## Fonctionnalités
 
 - Gestion des fichiers et dossiers : création, import, téléchargement, renommage, duplication et suppression.
 - Prévisualisation et édition de fichiers depuis l'interface.
-- Comptes utilisateurs avec rôles **root**, **administrateur** et **utilisateur**.
+- Comptes root, administrateur et utilisateur.
 - Espaces partagé et privé.
-- Gestion des permissions par utilisateur, groupe ou accès global.
-- Liens de partage pour consulter un fichier, avec possibilité d'autoriser sa modification.
-- Compression et extraction d'archives ZIP.
-- Interface avec thèmes clair et sombre.
-- Application de bureau compatible avec Electron.
-
-## Technologies
-
-- **Node.js** et **Express** pour le serveur et l'API.
-- **MySQL** pour les comptes, les fichiers et les permissions.
-- **HTML, CSS et JavaScript** pour l'interface web.
-- **Electron** et **electron-builder** pour l'application de bureau.
+- Permissions par utilisateur, groupe ou accès global.
+- Liens publics de partage, en lecture seule ou avec édition.
+- Compression et extraction ZIP.
+- Interface web avec thèmes clair et sombre.
+- Application de bureau Electron.
 
 ## Prérequis
 
-Pour héberger une instance, il faut :
+### Serveur Node.js
+- Node.js 20 ou supérieur et npm.
+- MySQL ou MariaDB compatible.
+- Un compte MySQL pouvant créer les tables et la base `fileweb`.
 
-- Node.js (version 20 LTS ou supérieure recommandée).
-- npm.
-- MySQL ou un serveur compatible avec le protocole MySQL.
-- Un compte MySQL autorisé à créer la base de données et les tables de l'application.
+### Serveur PHP
+- PHP 8.2 ou supérieur.
+- MySQL ou MariaDB.
+- Extensions PHP `pdo_mysql`, `fileinfo` et `zip`.
+- Apache avec `mod_rewrite`, ou règles équivalentes sur Nginx/PHP-FPM.
 
-## Installation et lancement du serveur
+## Développement et lancement Node.js
 
-1. Récupérez le dépôt :
+```bash
+git clone https://github.com/yanisrocaboyer/FileBrowserIndex.git
+cd FileBrowserIndex
+npm install
+cp .env.example .env
+```
 
-   ```bash
-   git clone https://github.com/yanisrocaboyer/FileBrowserIndex.git
-   cd FileBrowserIndex
-   ```
+Configurez les paramètres MySQL et une clé secrète dans `.env` :
 
-2. Installez les dépendances :
+```dotenv
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=fbi
+DB_PASSWORD=remplacez_par_votre_mot_de_passe
+JWT_SECRET=une_cle_aleatoire_longue_et_secrete
+PORT=3000
+MAX_UPLOAD_MB=100
+```
 
-   ```bash
-   npm install
-   ```
+Puis lancez :
 
-3. Créez votre fichier de configuration :
+```bash
+npm start
+```
 
-   **Linux / macOS**
-   ```bash
-   cp .env.example .env
-   ```
+Ouvrez `http://localhost:3000`. Au premier démarrage, les tables et la base `fileweb` sont créées. Un compte root est initialisé et son mot de passe temporaire est affiché une seule fois dans le terminal.
 
-   **Windows (PowerShell)**
-   ```powershell
-   Copy-Item .env.example .env
-   ```
+## Construire les distributions d'hébergement
 
-4. Renseignez les paramètres de connexion MySQL dans le fichier `.env` :
+Les commandes suivantes génèrent des dossiers prêts à être transférés sur le serveur. Elles ne déploient rien automatiquement et ne modifient aucun VPS.
 
-   ```dotenv
-   DB_HOST=127.0.0.1
-   DB_PORT=3306
-   DB_USER=fbi
-   DB_PASSWORD=remplacez_par_votre_mot_de_passe
-   JWT_SECRET=remplacez_par_une_cle_aleatoire_longue_et_secrete
-   PORT=3000
-   MAX_UPLOAD_MB=100
-   ```
+### Node.js + MySQL
 
-   La base utilisée actuellement par l'application s'appelle `fileweb` : elle est créée automatiquement au premier démarrage. L'utilisateur MySQL configuré doit donc avoir les droits nécessaires pour créer cette base et ses tables.
+```bash
+npm run build:node
+```
 
-   **Important :** choisissez une valeur longue et aléatoire pour `JWT_SECRET`. Ne publiez jamais votre fichier `.env`, vos mots de passe ou vos clés secrètes.
+Le dossier `dist/node/` contient le serveur Express, l'interface, les fichiers de dépendances et les instructions d'installation. Sur le serveur, configurez `.env`, exécutez `npm install --omit=dev`, puis `npm start`.
 
-5. Démarrez le serveur :
+### PHP + MySQL
 
-   ```bash
-   npm start
-   ```
+```bash
+npm run build:php
+```
 
-6. Ouvrez l'adresse suivante dans votre navigateur :
+Le dossier `dist/php/` contient l'interface web, l'API PHP, les bibliothèques front-end, les règles Apache et les instructions d'installation. Transférez son contenu sur votre hébergement, copiez `config.example.php` vers `config.php`, puis renseignez les accès MySQL et une clé `JWT_SECRET` privée.
 
-   ```
-   http://localhost:3000
-   ```
+Le backend PHP utilise le même modèle de données MySQL que le backend Node.js : utilisateurs, nœuds/fichiers, groupes, membres, permissions et liens de partage. Faites une sauvegarde avant tout changement de backend et ne faites pas fonctionner les deux serveurs simultanément sur la même base pendant une migration.
 
-   Adaptez le port si vous avez défini une autre valeur dans `PORT`.
+Consultez [php/README.md](php/README.md) pour les prérequis, limites d'import et précautions de déploiement PHP.
 
-Au premier démarrage, un compte **root** est créé. Son mot de passe temporaire est affiché dans le terminal : conservez-le, car il n'est affiché qu'à cette occasion. Le compte root permet ensuite de gérer les comptes et les administrateurs.
-
-## Déploiement sur son propre serveur
-
-Chaque personne peut héberger sa propre instance sur un serveur compatible avec Node.js et MySQL :
-
-1. Installer Node.js et MySQL sur le serveur (ou utiliser une base MySQL distante).
-2. Récupérer le dépôt et installer les dépendances avec `npm install`.
-3. Créer et configurer le fichier `.env`.
-4. Lancer l'application avec `npm start`.
-5. Pour une mise en production, utiliser un gestionnaire de processus (par exemple systemd ou PM2) et placer un serveur web inverse proxy HTTPS devant l'application.
-
-Chaque instance possède sa propre base de données et sa propre configuration. Il n'est pas nécessaire d'utiliser le serveur de l'auteur du projet.
-
-### Hébergement PHP
-
-L'interface est écrite en HTML, CSS et JavaScript, mais l'application ne se limite pas à des fichiers statiques : elle communique avec une API Express qui gère l'authentification, les permissions, les fichiers et la base MySQL.
-
-Par conséquent, **un hébergement PHP classique qui ne permet pas d'exécuter Node.js ne suffit pas à faire fonctionner l'application complète**. Il peut servir des fichiers statiques, mais il ne fournit pas automatiquement les routes API nécessaires.
-
-Pour rendre FBI entièrement compatible avec un hébergement PHP, il faudrait notamment réécrire l'API Express en PHP. Une autre possibilité serait de servir l'interface depuis un hébergement PHP et de conserver l'API Node.js sur un autre serveur, après adaptation de l'URL de l'API et de la configuration CORS. Cette compatibilité n'est pas encore implémentée.
-
-## Application de bureau (Electron)
-
-Le projet contient également une version Electron.
-
-Après avoir installé et configuré les dépendances et la base MySQL :
+## Application de bureau Electron
 
 ```bash
 npm run electron
 ```
 
-Pour construire l'application selon le système utilisé :
+Pour générer les installateurs :
 
 ```bash
 npm run dist:win
@@ -129,36 +98,30 @@ npm run dist:mac
 npm run dist:linux
 ```
 
-Les fichiers générés sont placés dans le dossier `dist-apps/`.
-
-### Signature macOS
-
-La création d'un DMG ne nécessite pas à elle seule un compte Apple Developer. En revanche, pour distribuer une application macOS signée et notarisée afin d'éviter les avertissements de sécurité habituels, il faut un certificat **Developer ID Application** et un abonnement Apple Developer Program actif. Consultez la documentation Apple et Electron avant de préparer une distribution signée.
+Les fichiers sont générés dans `dist-apps/`. La version macOS est volontairement **non signée et non notarisée** : aucun abonnement Apple Developer n'est nécessaire pour la construire, mais macOS peut afficher un avertissement Gatekeeper lors de son ouverture.
 
 ## Configuration
 
-Les principales variables disponibles sont :
-
-| Variable | Rôle |
+| Variable | Utilité |
 | --- | --- |
 | `DB_HOST` | Adresse du serveur MySQL |
 | `DB_PORT` | Port MySQL (3306 par défaut) |
 | `DB_USER` | Utilisateur MySQL |
 | `DB_PASSWORD` | Mot de passe MySQL |
-| `JWT_SECRET` | Clé secrète utilisée pour les jetons d'authentification |
-| `PORT` | Port HTTP de l'application (3000 par défaut) |
-| `MAX_UPLOAD_MB` | Taille maximale d'un fichier importé en Mo (100 par défaut) |
+| `JWT_SECRET` | Clé de signature des jetons |
+| `PORT` | Port HTTP Node.js (3000 par défaut) |
+| `MAX_UPLOAD_MB` | Taille maximale d'un import Node.js (100 Mo par défaut) |
 
-La base de données est actuellement nommée `fileweb` directement dans le code.
+La version PHP utilise les mêmes paramètres MySQL dans `php/config.php`, ainsi que `MAX_UPLOAD_BYTES` et `MAX_UNZIP_BYTES`.
 
 ## Sécurité et sauvegardes
 
 - Utilisez HTTPS dès que l'application est accessible depuis Internet.
-- Définissez un `JWT_SECRET` personnel, long et aléatoire.
-- N'exposez pas MySQL directement à Internet.
-- Gardez Node.js, MySQL et les dépendances à jour.
-- Sauvegardez régulièrement la base MySQL : elle contient les fichiers et les données des comptes.
-- Ne partagez jamais votre fichier `.env`.
+- Choisissez un `JWT_SECRET` long, aléatoire et propre à chaque instance.
+- Utilisez un compte MySQL dédié et n'exposez pas MySQL à Internet.
+- Ne publiez jamais `.env` ou `config.php`.
+- Sauvegardez régulièrement la base MySQL : les fichiers y sont stockés.
+- Vérifiez les limites d'import imposées par PHP ou votre hébergeur.
 
 ## Licence
 
