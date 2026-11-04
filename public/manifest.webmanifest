@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "FBI — FileBrowserIndex",
+  "short_name": "FBI",
+  "description": "Gestionnaire de fichiers personnel et partagé",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#10161c",
+  "theme_color": "#18212a",
+  "icons": [
+    {
+      "src": "assets/img/FBI-Logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
