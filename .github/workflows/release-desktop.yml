@@ -1,0 +1,90 @@
+name: Build and publish desktop release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag (for example v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            os: windows-latest
+            command: dist:win
+          - platform: linux
+            os: ubuntu-latest
+            command: dist:linux
+          - platform: macos
+            os: macos-latest
+            command: dist:mac
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build desktop packages
+        run: npm run ${{ matrix.command }} -- --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Upload desktop packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: fbi-${{ matrix.platform }}
+          path: |
+            dist-apps/*.exe
+            dist-apps/*.AppImage
+            dist-apps/*.deb
+            dist-apps/*.dmg
+            dist-apps/*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: fbi-*
+          merge-multiple: true
+          path: release-assets
+      - name: Validate version and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version tag: $VERSION" >&2
+            exit 1
+          fi
+          if gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists; refusing to overwrite." >&2
+            exit 1
+          fi
+          gh release create "$VERSION" release-assets/* \
+            --repo "$REPO" \
+            --target "$SHA" \
+            --title "FBI $VERSION" \
+            --generate-notes
