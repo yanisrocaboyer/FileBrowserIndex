@@ -1,3 +1,4 @@
+SetEnvIfNoCase Authorization "(.+)" HTTP_AUTHORIZATION=$1
 Options -Indexes
 DirectoryIndex index.php
 <IfModule mod_rewrite.c>

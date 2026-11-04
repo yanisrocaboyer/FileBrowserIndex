@@ -105,7 +105,7 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 <div id="auth" hidden>
   <form id="authForm">
     <center>
-      <img src="assets/img/FBI-Logo.png" alt="fbi_logo">
+      <img style="border-radius: 20px;" width="150px" src="assets/img/FBI-Logo.png" alt="fbi_logo">
       <h1>FBI</h1>
     </center>
     <input id="u" placeholder="Identifiant" autocomplete="username" required>
@@ -781,9 +781,9 @@ async function renderMd(text) {
   text = text.replace(/\[\^([^\]]+)\]/g, (_, id) => footnotes.has(id) ? `<sup id="fnref-${esc(id)}"><a href="#fn-${esc(id)}">${esc(id)}</a></sup>` : _);
   const maths = []; text = stashMath(text, maths);
   let html = marked.parse(text);
+  html = html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g, '<pre class="mermaid">$1</pre>');
   html = html.replace(/<pre><code(?: class="language-([^"]+)")?>([\s\S]*?)<\/code><\/pre>/g, (_,lang,code) => `<pre class="codeblock"><code>${highlightCode(decodeCodeEntities(code),lang||'')}</code></pre>`);
   if (footnotes.size) html += '<section class="footnotes"><hr><ol>' + [...footnotes].map(([id,body]) => `<li id="fn-${esc(id)}">${marked.parseInline(body)} <a href="#fnref-${esc(id)}" aria-label="Retour">↩</a></li>`).join('') + '</ol></section>';
-  html = html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g, '<pre class="mermaid">$1</pre>');
   const doc = new DOMParser().parseFromString('<body>' + html, 'text/html'); // document inerte : rien ne s'exécute ni ne se charge
   doc.querySelectorAll('script,iframe,object,embed,link,meta,base').forEach(e => e.remove());
   doc.querySelectorAll('*').forEach(e => [...e.attributes].forEach(a => {
