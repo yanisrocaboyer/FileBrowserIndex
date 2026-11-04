@@ -10,7 +10,9 @@ for (const item of ['index.php', 'config.example.php', '.htaccess', 'README.md']
   const src = path.join(root, 'php', item);
   fs.copyFileSync(src, path.join(out, item));
 }
-fs.copyFileSync(path.join(root, 'public', 'index.html'), path.join(out, 'index.html'));
+for (const file of ['index.html', 'manifest.webmanifest', 'sw.js']) {
+  fs.copyFileSync(path.join(root, 'public', file), path.join(out, file));
+}
 fs.cpSync(path.join(root, 'public', 'assets'), path.join(out, 'assets'), { recursive: true });
 
 const vendor = path.join(out, 'vendor');
