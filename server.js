@@ -658,10 +658,11 @@ app.post('/api/nodes', auth, w(async (q, s) => {
 }));
 
 // Importer n'importe quel type de fichier
-app.post('/api/upload', auth, upload.array('files'), w(async (q, s) => {
+app.post('/api/upload', auth, upload.fields([{ name: 'files', maxCount: 1000 }, { name: 'files[]', maxCount: 1000 }]), w(async (q, s) => {
   const pl = place(await ctx(q.user), q.user, +q.body.parent_id || null, q.body.private === '1');
   if (pl.err) return fail(s, ...pl.err);
-  for (const f of q.files || []) await ins(q.user.id, pl.parent, fixName(f).slice(0, 255), 'file', f.buffer, pl.po);
+  const files = [...(q.files?.files || []), ...(q.files?.['files[]'] || [])];
+  for (const f of files) await ins(q.user.id, pl.parent, fixName(f).slice(0, 255), 'file', f.buffer, pl.po);
   s.json({ ok: true });
 }));
 
