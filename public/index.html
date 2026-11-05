@@ -150,6 +150,7 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 #collab-panel textarea::placeholder{color:var(--mu)!important;opacity:1}
 #collab-panel textarea:focus{outline:2px solid #5b96fa;outline-offset:1px}
 #collab-panel .collab-send{width:100%;padding:10px}
+.collab-avatar{overflow:hidden}.collab-avatar img{width:100%;height:100%;object-fit:cover}
 </style>
 </head>
 <body>
@@ -391,6 +392,27 @@ async function showSettings(tab='account') {
     const name=ce('input'), username=ce('input'), current=ce('input'); name.value=me.display_name||me.username;username.value=me.username;current.type='password';
     [['Nom affiché',name],['Username',username],['Mot de passe actuel (confirmation)',current]].forEach(([l,i])=>{sec.append(ce('label','',l),i)});
     const saveB=ce('button','pri','Enregistrer le profil');saveB.onclick=async()=>{await J('/api/me/profile',{method:'PUT',json:{name:name.value,username:username.value,password:current.value}});current.value='';me=await J('/api/me');$('#me').textContent=(me.display_name||me.username)+' · @'+me.username+(me.role==='user'?'':' ('+me.role+')');alert('Profil mis à jour.');};sec.append(saveB);
+    sec.append(ce('hr'));
+    sec.append(ce('h3','','Photo de profil'));
+    const avatarPreview=ce('span','collab-avatar',me.avatar?'':(me.display_name||me.username).slice(0,2).toUpperCase());
+    if(me.avatar){const pic=ce('img');pic.src=me.avatar;pic.alt='';avatarPreview.append(pic);}
+    const avatarInput=ce('input');avatarInput.type='file';avatarInput.accept='image/png,image/jpeg,image/webp';
+    const avatarSave=ce('button','pri','Enregistrer la photo');
+    avatarSave.onclick=async()=>{
+      const file=avatarInput.files?.[0];if(!file)return alert('Choisis une image.');
+      if(file.size>5*1024*1024)return alert('Image trop volumineuse.');
+      const image=await createImageBitmap(file);
+      const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;
+      const ctx=canvas.getContext('2d');const side=Math.min(image.width,image.height);
+      ctx.drawImage(image,(image.width-side)/2,(image.height-side)/2,side,side,0,0,128,128);image.close();
+      const avatar=canvas.toDataURL('image/jpeg',0.75);
+      await J('/api/me/avatar',{method:'PUT',json:{avatar}});
+      me=await J('/api/me');avatarPreview.replaceChildren();
+      const pic=ce('img');pic.src=me.avatar;pic.alt='';avatarPreview.append(pic);alert('Photo enregistrée.');
+    };
+    const avatarRemove=ce('button','','Retirer la photo');
+    avatarRemove.onclick=async()=>{await J('/api/me/avatar',{method:'PUT',json:{avatar:null}});me=await J('/api/me');avatarPreview.replaceChildren();avatarPreview.textContent=(me.display_name||me.username).slice(0,2).toUpperCase();};
+    sec.append(avatarPreview,avatarInput,avatarSave,avatarRemove);
     sec.append(ce('hr'));
     const old=ce('input'),nw=ce('input');old.type=nw.type='password';sec.append(ce('h3','','Changer le mot de passe'),ce('label','','Mot de passe actuel'),old,ce('label','','Nouveau mot de passe (6 caractères minimum)'),nw);
     const pw=ce('button','pri','Modifier le mot de passe');pw.onclick=async()=>{await J('/api/me/password',{method:'PUT',json:{old:old.value,password:nw.value}});old.value=nw.value='';alert('Mot de passe modifié.');};sec.append(pw);root.append(sec);
@@ -1282,6 +1304,7 @@ async function startCollaboration(n){
       const item=ce('div','collab-item');
       item.append(ce('strong','',c.username),ce('small','',c.created_at),ce('div','',c.body));
       if(c.resolved)item.append(ce('small','','Résolu'));
+      const remove=ce('button','','Supprimer');remove.type='button';remove.onclick=async()=>{if(!confirm('Supprimer ce commentaire ?'))return;try{await J('/api/nodes/'+n.id+'/comments/'+c.id,{method:'DELETE'});await refreshComments();}catch(e){alert(e.message);}};item.append(remove);
       const resolve=ce('button','',c.resolved?'Rouvrir':'Résoudre');
       resolve.type='button';
       resolve.onclick=async()=>{await J('/api/nodes/'+n.id+'/comments/'+c.id,{method:'PUT',json:{resolved:!c.resolved}});await refreshComments();};
@@ -1302,7 +1325,7 @@ async function startCollaboration(n){
       present.textContent='Sur ce fichier : '+(data.users.map(u=>u.name).join(', ')||'personne');
       $('#collab-presence-count').textContent=String(data.users.length);
       const people=$('#collab-popover');people.replaceChildren(ce('strong','','Personnes présentes'));
-      for(const u of data.users){const line=ce('div','urow');const initials=(u.name||u.username||'?').split(/\\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();line.append(ce('span','collab-avatar',initials),ce('span','',u.name||u.username));people.append(line);}
+      for(const u of data.users){const line=ce('div','urow');const initials=(u.name||u.username||'?').split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();const avatar=ce('span','collab-avatar',u.avatar?'':initials);if(u.avatar){const img=ce('img');img.src=u.avatar;img.alt='';img.width=30;img.height=30;avatar.append(img);}line.append(avatar,ce('span','',u.name||u.username));people.append(line);}
       if(collabVersion && data.updated_at!==collabVersion && !dirty){
         const ta=$('#view .ed textarea');
         if(ta && cur?.id===n.id){
