@@ -103,6 +103,25 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 .grp .urow{border:0}
 .mem{display:flex;flex-wrap:wrap;gap:4px 16px;padding:2px 0 6px}
 @media(max-width:700px){#app{grid-template-columns:1fr;grid-template-rows:50% 1fr}#view{flex-direction:column}}
+
+/* Recherche globale et recherche dans le fichier */
+#global-search-trigger{display:flex;align-items:center;gap:8px;max-width:220px;min-width:120px;color:var(--mu);white-space:nowrap}
+#global-search-trigger kbd{margin-left:auto;font:11px system-ui;border:1px solid var(--ln);border-radius:4px;padding:2px 4px}
+#search-dialog{width:min(620px,94vw);max-height:80vh;padding:0;overflow:hidden}
+#search-dialog .search-heading{padding:14px;border-bottom:1px solid var(--ln)}
+#search-dialog input{width:100%;font-size:16px}
+#global-results{max-height:55vh;overflow:auto;padding:8px}
+#global-results button{display:flex;flex-direction:column;gap:3px;width:100%;padding:10px;text-align:left;border:0;background:transparent}
+#global-results button:hover,#global-results button:focus-visible{background:var(--hv)}
+#global-results small{color:var(--mu)}
+#global-results p{padding:10px;color:var(--mu)}
+#file-find{display:flex;align-items:center;gap:5px}
+#file-find[hidden]{display:none}
+#file-find-input{width:155px;padding:5px 8px}
+#file-find-count{font-size:12px;color:var(--mu);white-space:nowrap}
+#file-find button{padding:4px 7px}
+.home-search{padding:12px 16px!important;margin:10px 0 20px;text-align:left;width:min(100%,560px);color:var(--mu)}
+@media(max-width:850px){#global-search-trigger{min-width:0}#global-search-trigger kbd{display:none}#bar{flex-wrap:wrap}#file-find-input{width:115px}}
 </style>
 </head>
 <body>
@@ -124,7 +143,7 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
   <aside>
     <div class="hd"><b>FBI</b><span id="me" class="mu"></span></div>
     <div class="tb">
-      <button id="homebtn">Accueil</button><button id="settingsbtn">Paramètres</button><button id="out">Quitter</button>
+      <button id="homebtn">Accueil</button><button id="global-search-trigger" type="button" title="Rechercher dans les fichiers (Ctrl+K / Cmd+K)">⌕ Rechercher <kbd>⌘/Ctrl K</kbd></button><button id="settingsbtn">Paramètres</button><button id="out">Quitter</button>
     </div>
     <div class="tb">
       <button id="nf">+ Fichier</button><button id="nd">+ Dossier</button><button id="up">Importer</button>
@@ -133,11 +152,12 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
     <div id="prog" hidden><div id="pl"></div><div class="bar"><i id="pf"></i></div></div>
   </aside>
   <main>
-    <div id="bar"><span id="title"></span><div><div id="vm" hidden><button data-m="ed">Édition</button><button data-m="live">Live</button><button data-m="pv">Lecture</button></div><button id="share" hidden>Partager</button><button id="dl" hidden>Télécharger</button><button id="save" class="pri" hidden>Enregistrer</button></div></div>
+    <div id="bar"><span id="title"></span><div><div id="file-find" hidden><input id="file-find-input" type="search" placeholder="Chercher dans le fichier" aria-label="Chercher dans le fichier"><span id="file-find-count" aria-live="polite"></span><button id="file-find-prev" type="button" title="Occurrence précédente">↑</button><button id="file-find-next" type="button" title="Occurrence suivante">↓</button><button id="file-find-close" type="button" title="Fermer la recherche">×</button></div><div id="vm" hidden><button data-m="ed">Édition</button><button data-m="live">Live</button><button data-m="pv">Lecture</button></div><button id="share" hidden>Partager</button><button id="dl" hidden>Télécharger</button><button id="save" class="pri" hidden>Enregistrer</button></div></div>
     <div id="view"><center><p id="hint">Sélectionnez un fichier pour l'ouvrir.</p></center></div>
   </main>
 </div>
 
+<dialog id="search-dialog" aria-label="Rechercher un fichier"><div class="search-heading"><input id="global-search-input" type="search" placeholder="Rechercher un fichier ou un dossier…" autocomplete="off" aria-label="Rechercher un fichier"></div><div id="global-results" role="listbox"></div></dialog>
 <div id="ctx" hidden></div>
 <input type="file" id="files" multiple hidden>
 
@@ -293,7 +313,7 @@ async function show() {
 
 // ---- Accueil et paramètres
 function showHome() {
-  clearTimeout(autosaveTimer); autosaveTimer=null; cur = null; dirty = false; if (url) URL.revokeObjectURL(url); url = null;
+  closeFileFind();clearTimeout(autosaveTimer); autosaveTimer=null; cur = null; dirty = false; if (url) URL.revokeObjectURL(url); url = null;
   $('#title').textContent = 'Accueil'; $('#save').hidden = true; $('#dl').hidden = true; $('#share').hidden = true; $('#vm').hidden = true;
   const V = $('#view'); V.removeAttribute('data-m'); V.innerHTML = '';
   const wrap = ce('div','home'); wrap.append(ce('h1','',`Bonjour ${me.display_name || me.username} !`), ce('p','mu','Reprenez là où vous en étiez.'));
@@ -302,7 +322,7 @@ function showHome() {
   const grid = ce('div','recent');
   if (!recent.length) grid.append(ce('p','mu','Aucun fichier récent pour le moment.'));
   recent.forEach(n => { const b=ce('button'); b.append(ce('b','',n.name),ce('small','mu',new Date(n.updated_at).toLocaleString())); b.onclick=()=>openNode(n); grid.append(b); });
-  wrap.append(grid); V.append(wrap);
+  wrap.append(grid); const searchButton=ce('button','home-search','⌕ Rechercher un fichier ou un dossier…  (Ctrl+K / Cmd+K)');searchButton.type='button';searchButton.onclick=openGlobalSearch;wrap.insertBefore(searchButton,h); V.append(wrap);
 }
 function applyTheme() {
   const theme = localStorage.getItem('fw-theme') || 'light';
@@ -314,7 +334,7 @@ function applyTheme() {
 }
 async function showSettings(tab='account') {
   if (dirty && !confirm('Abandonner les modifications non enregistrées ?')) return;
-  clearTimeout(autosaveTimer); autosaveTimer=null; cur=null; $('#title').textContent='Paramètres'; $('#save').hidden=true; $('#dl').hidden=true; $('#share').hidden=true; $('#vm').hidden=true;
+  closeFileFind();clearTimeout(autosaveTimer); autosaveTimer=null; cur=null; $('#title').textContent='Paramètres'; $('#save').hidden=true; $('#dl').hidden=true; $('#share').hidden=true; $('#vm').hidden=true;
   const V=$('#view'); V.removeAttribute('data-m'); V.innerHTML='';
   const root=ce('div','settings'); root.append(ce('h1','','Paramètres'),ce('p','mu','Compte, utilisateurs, groupes et apparence du site.'));
   const nav=ce('nav'); [['account','Compte'],['access','Utilisateurs & groupes'],['theme','Theme']].forEach(([id,label])=>{const b=ce('button',id===tab?'pri':'',label);b.onclick=()=>showSettings(id);nav.append(b)});root.append(nav);
@@ -1060,7 +1080,7 @@ function setupCodeEditor(ta, extName) {
 
 async function openNode(n) {
   if (dirty && !confirm('Abandonner les modifications non enregistrées ?')) return;
-  clearTimeout(autosaveTimer); autosaveTimer=null;
+  closeFileFind();clearTimeout(autosaveTimer); autosaveTimer=null;
   const k = kind(n.name), V = $('#view');
   cur = n; sel = n; dirty = false; if (url) URL.revokeObjectURL(url); url = null; render();
   V.innerHTML = ''; setDirty(false); $('#dl').hidden = false; $('#vm').hidden = true;
@@ -1122,6 +1142,85 @@ $('#save').onclick = save;
 $('#dl').onclick = () => cur && download(cur);
 addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); } });
 addEventListener('beforeunload', e => { if (dirty) e.preventDefault(); });
+
+
+/* Recherche globale (noms des fichiers et dossiers accessibles) */
+const searchDialog = $('#search-dialog');
+const globalSearchInput = $('#global-search-input');
+function openGlobalSearch(){
+  if (!token || $('#app').hidden) return;
+  if (!searchDialog.open) searchDialog.showModal();
+  globalSearchInput.value='';
+  renderGlobalSearch();
+  globalSearchInput.focus();
+}
+function renderGlobalSearch(){
+  const q=globalSearchInput.value.trim().toLocaleLowerCase();
+  const results=$('#global-results');results.replaceChildren();
+  const matches=nodes.filter(n=>n.name.toLocaleLowerCase().includes(q))
+    .sort((a,b)=>a.name.localeCompare(b.name)).slice(0,100);
+  if (!matches.length){results.append(ce('p','','Aucun résultat.'));return;}
+  for(const n of matches){
+    const b=ce('button');b.type='button';b.setAttribute('role','option');
+    b.append(ce('strong','',n.name),ce('small','',n.type==='folder'?'Dossier':'Fichier'));
+    b.onclick=async()=>{searchDialog.close();if(n.type==='folder'){let p=n;while(p){open.add(p.id);p=nodes.find(x=>x.id===p.parent_id);}sel=n;render();}else await openNode(n);};
+    results.append(b);
+  }
+}
+globalSearchInput.addEventListener('input',renderGlobalSearch);
+globalSearchInput.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){const first=$('#global-results button');if(first){e.preventDefault();first.click();}}
+});
+$('#global-search-trigger').onclick=openGlobalSearch;
+
+/* Recherche de texte dans les fichiers éditables ou consultables en texte */
+const fileFind=$('#file-find'),findInput=$('#file-find-input'),findCount=$('#file-find-count');
+let findMatches=[],findIndex=-1;
+function closeFileFind(){
+  fileFind.hidden=true;findInput.value='';findMatches=[];findIndex=-1;findCount.textContent='';
+}
+function refreshFileFind(reset=true){
+  const ta=$('#view textarea'),q=findInput.value;
+  findMatches=[];if(ta && q){
+    const source=ta.value.toLocaleLowerCase(),needle=q.toLocaleLowerCase();
+    let from=0,p;
+    while((p=source.indexOf(needle,from))!==-1 && findMatches.length<10000){
+      findMatches.push(p);from=p+needle.length;
+    }
+  }
+  if(reset)findIndex=-1;
+  findCount.textContent=q?(findMatches.length?(Math.max(0,findIndex+1)+' / '+findMatches.length):'0 résultat'):'';
+}
+function jumpFileFind(direction=1){
+  const ta=$('#view textarea');if(!ta)return;
+  refreshFileFind(false);
+  if(!findMatches.length)return;
+  if(findIndex<0){
+    const caret=ta.selectionStart;
+    findIndex=direction>0?findMatches.findIndex(p=>p>=caret):findMatches.findLastIndex(p=>p<caret);
+    if(findIndex<0)findIndex=direction>0?0:findMatches.length-1;
+  }else findIndex=(findIndex+direction+findMatches.length)%findMatches.length;
+  const start=findMatches[findIndex];
+  if($('#view').dataset.m==='pv')setMode('ed');
+  ta.focus();ta.setSelectionRange(start,start+findInput.value.length);
+  findCount.textContent=(findIndex+1)+' / '+findMatches.length;
+}
+function openFileFind(){
+  if(!cur || !$('#view textarea'))return false;
+  fileFind.hidden=false;refreshFileFind();findInput.focus();findInput.select();return true;
+}
+findInput.oninput=()=>{refreshFileFind();if(findMatches.length)jumpFileFind();};
+findInput.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();jumpFileFind(e.shiftKey?-1:1);}if(e.key==='Escape'){e.preventDefault();closeFileFind();}};
+$('#file-find-next').onclick=()=>jumpFileFind(1);
+$('#file-find-prev').onclick=()=>jumpFileFind(-1);
+$('#file-find-close').onclick=closeFileFind;
+addEventListener('keydown',e=>{
+  if(!(e.ctrlKey||e.metaKey)||e.altKey)return;
+  if(e.key.toLowerCase()==='k'){e.preventDefault();openGlobalSearch();}
+  if(e.key.toLowerCase()==='f' && !$('#app').hidden && cur && $('#view textarea')){
+    e.preventDefault();openFileFind();
+  }
+});
 
 show().then(() => { applyTheme(); updateOnlineBadge(); });
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
