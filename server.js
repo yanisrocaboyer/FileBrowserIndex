@@ -111,6 +111,7 @@ async function initDb() {
     FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,INDEX(node_id)
   ) ENGINE=InnoDB`);
+  for(const [column,type] of [['quote_text','TEXT NULL'],['selection_start','INT NULL'],['selection_end','INT NULL']]) if(!(await hasCol('file_comments',column))) await pool.query('ALTER TABLE file_comments ADD COLUMN '+column+' '+type);
   await pool.query(`CREATE TABLE IF NOT EXISTS share_links (
     id INT AUTO_INCREMENT PRIMARY KEY,
     node_id INT NOT NULL UNIQUE,
@@ -704,14 +705,14 @@ app.post('/api/nodes/:id/collaboration',auth,w(async(q,s)=>{
 }));
 app.get('/api/nodes/:id/comments',auth,w(async(q,s)=>{
   if(!await collabAccess(q,s))return;
-  const [rows]=await pool.query('SELECT c.id,c.user_id,c.body,c.created_at,c.resolved,u.username FROM file_comments c JOIN users u ON u.id=c.user_id WHERE c.node_id=? ORDER BY c.id',[+q.params.id]);
+  const [rows]=await pool.query('SELECT c.id,c.user_id,c.body,c.quote_text,c.selection_start,c.selection_end,c.created_at,c.resolved,u.username FROM file_comments c JOIN users u ON u.id=c.user_id WHERE c.node_id=? ORDER BY c.id',[+q.params.id]);
   s.json(rows);
 }));
 app.post('/api/nodes/:id/comments',auth,w(async(q,s)=>{
   if(!await collabAccess(q,s))return;
   const body=String(q.body.body||'').trim();
   if(!body||body.length>2000)return fail(s,400,'Commentaire invalide (1 à 2000 caractères).');
-  await pool.query('INSERT INTO file_comments(node_id,user_id,body) VALUES(?,?,?)',[+q.params.id,q.user.id,body]);
+  await pool.query('INSERT INTO file_comments(node_id,user_id,body,quote_text,selection_start,selection_end) VALUES(?,?,?,?,?,?)',[+q.params.id,q.user.id,body,String(q.body.quote_text||'').slice(0,500),Number.isInteger(q.body.selection_start)?Math.max(0,q.body.selection_start):null,Number.isInteger(q.body.selection_end)?Math.max(0,q.body.selection_end):null]);
   s.json({ok:true});
 }));
 app.delete('/api/nodes/:id/comments/:commentId',auth,w(async(q,s)=>{
