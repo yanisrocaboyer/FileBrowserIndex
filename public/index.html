@@ -1283,6 +1283,37 @@ $('#editor-selection-menu').addEventListener('click',async e=>{
 });
 
 $('#view').addEventListener('input',e=>{if(e.target.matches('.ed textarea'))paintCommentHighlights();});
+// Fusion prudente des changements non chevauchants (une zone modifiée par session).
+function changedSpan(base,next){
+  let a=0;while(a<base.length&&a<next.length&&base[a]===next[a])a++;
+  let b=base.length,c=next.length;while(b>a&&c>a&&base[b-1]===next[c-1]){b--;c--;}
+  return {start:a,end:b,text:next.slice(a,c)};
+}
+function threeWayMerge(base,local,remote){
+  if(local===base)return remote;
+  if(remote===base||remote===local)return local;
+  const a=changedSpan(base,local),b=changedSpan(base,remote);
+  if(a.start<b.end&&b.start<a.end)return null;
+  if(a.start===b.start)return null;
+  const changes=[a,b].sort((x,y)=>y.start-x.start);
+  let merged=base;
+  for(const c of changes)merged=merged.slice(0,c.start)+c.text+merged.slice(c.end);
+  return merged;
+}
+async function mergeRemoteChanges(fileId,revision){
+  const ta=$('#view .ed textarea');if(!ta||cur?.id!==fileId)return false;
+  const response=await api('/api/nodes/'+fileId+'/content');
+  const remote=await response.text();
+  if(cur?.id!==fileId)return false;
+  const merged=threeWayMerge(collabBase,ta.value,remote);
+  if(merged===null){collabConflict=true;return false;}
+  const cursor=ta.selectionStart,old=ta.value;
+  collabBase=remote;collabVersion=revision;
+  if(merged!==old){ta.value=merged;ta.setSelectionRange(Math.min(cursor,merged.length),Math.min(cursor,merged.length));ta.dispatchEvent(new Event('input',{bubbles:true}));}
+  setDirty(merged!==remote);paintCommentHighlights();
+  if(dirty)scheduleAutosave();
+  return true;
+}
 function paintCommentHighlights(){
   const ed=$('#view .ed');if(!ed)return;
   let strip=ed.querySelector('.collab-annotations');
@@ -1375,7 +1406,8 @@ async function startCollaboration(n){
 
 async function save() {
   const ta = $('#view .ed textarea'); if (!cur || !ta || !cur.edit || autosaveBusy) return;
-  const snapshot=ta.value, fileId=cur.id; autosaveBusy=true; try { await api('/api/nodes/' + fileId, { method: 'PUT', json: { content: snapshot, ...(collabVersion!==null ? {expected_revision:collabVersion}: {}) } });if(collabVersion!==null)collabVersion++; if(cur?.id===fileId){setDirty(ta.value!==snapshot);const st=$('.autosave');if(st)st.textContent='Enregistré · '+new Date().toLocaleTimeString();if(dirty)scheduleAutosave();} await load(); } finally { autosaveBusy=false; }
+  if(collabConflict){alert('Conflit : les modifications se chevauchent. Copiez votre texte avant de recharger le fichier.');return;}
+  const snapshot=ta.value, fileId=cur.id; autosaveBusy=true; try { await api('/api/nodes/' + fileId, { method: 'PUT', json: { content: snapshot, ...(collabVersion!==null ? {expected_revision:collabVersion}: {}) } });if(collabVersion!==null)collabVersion++;collabBase=snapshot; if(cur?.id===fileId){setDirty(ta.value!==snapshot);const st=$('.autosave');if(st)st.textContent='Enregistré · '+new Date().toLocaleTimeString();if(dirty)scheduleAutosave();} await load(); } catch(e){if(String(e.message).includes('409')){try{const v=await J('/api/nodes/'+fileId+'/collaboration');if(await mergeRemoteChanges(fileId,v.revision))scheduleAutosave();}catch(mergeError){console.warn('Fusion impossible',mergeError);}}throw e;} finally { autosaveBusy=false; }
 }
 function scheduleAutosave(){if(autosaveTimer||!cur?.edit)return;autosaveTimer=setTimeout(async()=>{autosaveTimer=null;if(dirty){try{await save();}catch(e){const st=$('.autosave');if(st)st.textContent='Échec de la sauvegarde · '+e.message;if(dirty && !String(e.message).includes('409'))scheduleAutosave();}}},900);}
 $('#save').onclick = save;
