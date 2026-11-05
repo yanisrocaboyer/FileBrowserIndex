@@ -1209,7 +1209,7 @@ function openFileFind(){
   if(!cur || !$('#view textarea'))return false;
   fileFind.hidden=false;refreshFileFind();findInput.focus();findInput.select();return true;
 }
-findInput.oninput=()=>{refreshFileFind();if(findMatches.length)jumpFileFind();};
+findInput.oninput=()=>{refreshFileFind();};
 findInput.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();jumpFileFind(e.shiftKey?-1:1);}if(e.key==='Escape'){e.preventDefault();closeFileFind();}};
 $('#file-find-next').onclick=()=>jumpFileFind(1);
 $('#file-find-prev').onclick=()=>jumpFileFind(-1);
