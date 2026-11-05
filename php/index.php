@@ -44,6 +44,7 @@ function init():void{
  "CREATE TABLE IF NOT EXISTS file_comments(id INT AUTO_INCREMENT PRIMARY KEY,node_id INT NOT NULL,user_id INT NOT NULL,body TEXT NOT NULL,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,resolved TINYINT(1) NOT NULL DEFAULT 0,FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,INDEX(node_id)) ENGINE=InnoDB",
  "CREATE TABLE IF NOT EXISTS share_links(id INT AUTO_INCREMENT PRIMARY KEY,node_id INT NOT NULL UNIQUE,token CHAR(64) NOT NULL UNIQUE,enabled TINYINT(1) NOT NULL DEFAULT 1,editor_only TINYINT(1) NOT NULL DEFAULT 0,created_by INT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL) ENGINE=InnoDB"
  ];foreach($sql as $s)pdo()->exec($s);
+ foreach(['cursor_start'=>'INT NULL','cursor_end'=>'INT NULL'] as $col=>$type){$check=one('SELECT COUNT(*) n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?',['collaboration_presence',$col]);if((int)$check['n']===0)pdo()->exec('ALTER TABLE collaboration_presence ADD COLUMN '.$col.' '.$type);}
  foreach(['quote_text'=>'TEXT NULL','selection_start'=>'INT NULL','selection_end'=>'INT NULL'] as $col=>$type){$check=one('SELECT COUNT(*) n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?',['file_comments',$col]);if((int)$check['n']===0)pdo()->exec('ALTER TABLE file_comments ADD COLUMN '.$col.' '.$type);}
  foreach(['users'=>['role'=>"ALTER TABLE users ADD COLUMN role ENUM('root','admin','user') NOT NULL DEFAULT 'user'",'display_name'=>'ALTER TABLE users ADD COLUMN display_name VARCHAR(80) NULL','avatar'=>'ALTER TABLE users ADD COLUMN avatar MEDIUMTEXT NULL'],'nodes'=>['private_owner'=>'ALTER TABLE nodes ADD COLUMN private_owner INT NULL','revision'=>'ALTER TABLE nodes ADD COLUMN revision INT NOT NULL DEFAULT 0']] as $t=>$cols)foreach($cols as $col=>$alter){$r=one('SELECT COUNT(*) n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?',[$t,$col]);if(!(int)$r['n'])pdo()->exec($alter);}
  $fks=rows("SELECT CONSTRAINT_NAME c FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='nodes' AND COLUMN_NAME='user_id' AND REFERENCED_TABLE_NAME='users'");
@@ -102,9 +103,9 @@ if(str_starts_with($uri,'/api/')){
  if(preg_match('~^/api/nodes/(\\d+)/collaboration$~',$uri,$m)){
   $id=(int)$m[1];$c=ctx($u);$n=$c['by'][$id]??null;
   if(!$n||$n['type']!=='file'||!can($c,$id,'v'))err(404,'Fichier inaccessible.');
-  if($method==='POST')q('INSERT INTO collaboration_presence(node_id,user_id,seen_at) VALUES(?,?,NOW()) ON DUPLICATE KEY UPDATE seen_at=NOW()',[$id,$u['id']]);
+  if($method==='POST')q('INSERT INTO collaboration_presence(node_id,user_id,seen_at,cursor_start,cursor_end) VALUES(?,?,NOW(),?,?) ON DUPLICATE KEY UPDATE seen_at=NOW(),cursor_start=VALUES(cursor_start),cursor_end=VALUES(cursor_end)',[$id,$u['id'],isset($b['cursor_start'])?max(0,(int)$b['cursor_start']):null,isset($b['cursor_end'])?max(0,(int)$b['cursor_end']):null]);
   if($method==='GET'||$method==='POST'){
-   $present=rows('SELECT u.id,u.username,u.avatar,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[$id]);
+   $present=rows('SELECT u.id,u.username,u.avatar,p.cursor_start,p.cursor_end,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[$id]);
    $version=one('SELECT updated_at,revision FROM nodes WHERE id=?',[$id]);
    out(['users'=>$present,'updated_at'=>$version['updated_at'],'revision'=>(int)$version['revision']]);
   }
