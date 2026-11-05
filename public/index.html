@@ -145,6 +145,11 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 #editor-selection-menu{position:fixed;z-index:1000;background:var(--bg);color:var(--fg);border:1px solid var(--ln);border-radius:9px;box-shadow:0 10px 25px #0004;padding:6px;display:grid;min-width:180px}
 #editor-selection-menu[hidden]{display:none}
 #editor-selection-menu button{text-align:left;padding:7px 10px}
+
+#collab-panel textarea{display:block;width:100%;min-height:90px;max-height:180px;resize:vertical;background:var(--bg)!important;color:var(--fg)!important;caret-color:var(--fg)!important;border:1px solid var(--ln)!important;border-radius:8px;padding:12px;font:14px/1.5 system-ui,sans-serif;box-sizing:border-box}
+#collab-panel textarea::placeholder{color:var(--mu)!important;opacity:1}
+#collab-panel textarea:focus{outline:2px solid #5b96fa;outline-offset:1px}
+#collab-panel .collab-send{width:100%;padding:10px}
 </style>
 </head>
 <body>
@@ -1221,7 +1226,7 @@ function hideSelectionMenu(){$('#editor-selection-menu').hidden=true;}
 document.addEventListener('click',e=>{if(!e.target.closest('#editor-selection-menu'))hideSelectionMenu();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')hideSelectionMenu();});
 $('#view').addEventListener('contextmenu',e=>{
-  const ta=e.target.closest('textarea');
+  const ta=e.target.closest('.ed textarea');
   if(!ta||!cur||!cur.edit||ta.selectionStart===ta.selectionEnd)return;
   e.preventDefault();
   selectionEditor=ta;selectionStart=ta.selectionStart;selectionEnd=ta.selectionEnd;
@@ -1266,7 +1271,7 @@ async function startCollaboration(n){
   const present=ce('div','mu','Connexion…');
   const list=ce('div','collab-list');
   const input=ce('textarea');input.placeholder='Ajouter un commentaire…';input.maxLength=2000;
-  const send=ce('button','pri','Commenter');send.type='button';
+  const send=ce('button','pri collab-send','Commenter');send.type='button';
   panel.append(heading,present,list,input,send);
   $('#view').prepend(panel);
   async function refreshComments(){
@@ -1299,7 +1304,7 @@ async function startCollaboration(n){
       const people=$('#collab-popover');people.replaceChildren(ce('strong','','Personnes présentes'));
       for(const u of data.users){const line=ce('div','urow');const initials=(u.name||u.username||'?').split(/\\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();line.append(ce('span','collab-avatar',initials),ce('span','',u.name||u.username));people.append(line);}
       if(collabVersion && data.updated_at!==collabVersion && !dirty){
-        const ta=$('#view textarea');
+        const ta=$('#view .ed textarea');
         if(ta && cur?.id===n.id){
           const response=await api('/api/nodes/'+n.id+'/content');
           ta.value=await response.text();ta.dispatchEvent(new Event('collab-refresh'));
