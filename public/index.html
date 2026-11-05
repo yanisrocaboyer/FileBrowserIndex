@@ -125,6 +125,8 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 @media(max-width:850px){#global-search-trigger{min-width:0}#global-search-trigger kbd{display:none}#bar{flex-wrap:wrap}#file-find-input{width:115px}}
 
 .material-symbols-rounded{font-family:"Material Symbols Rounded";font-weight:normal;font-style:normal;font-size:20px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;word-wrap:normal;direction:ltr;-webkit-font-feature-settings:"liga";font-feature-settings:"liga";-webkit-font-smoothing:antialiased;vertical-align:middle}
+
+.sidebar-search{padding:10px 12px 4px}.sidebar-search #global-search-trigger{width:100%;max-width:none;justify-content:flex-start;box-sizing:border-box}.sidebar-search #global-search-trigger kbd{margin-left:auto}
 </style>
 </head>
 <body>
@@ -145,8 +147,9 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 <div id="app" hidden>
   <aside>
     <div class="hd"><b>FBI</b><span id="me" class="mu"></span></div>
+    <div class="sidebar-search"><button id="global-search-trigger" type="button" title="Rechercher dans les fichiers (Ctrl+K / Cmd+K)"><span class="material-symbols-rounded">search</span> Rechercher <kbd>⌘/Ctrl K</kbd></button></div>
     <div class="tb">
-      <button id="homebtn">Accueil</button><button id="global-search-trigger" type="button" title="Rechercher dans les fichiers (Ctrl+K / Cmd+K)">⌕ Rechercher <kbd>⌘/Ctrl K</kbd></button><button id="settingsbtn">Paramètres</button><button id="out">Quitter</button>
+      <button id="homebtn">Accueil</button><button id="settingsbtn">Paramètres</button><button id="out">Quitter</button>
     </div>
     <div class="tb">
       <button id="nf">+ Fichier</button><button id="nd">+ Dossier</button><button id="up">Importer</button>
@@ -191,6 +194,7 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 </dialog>
 
 <dialog id="sharedlg"><h3>Partager le fichier</h3><p class="mu">Le lien est accessible sans compte. Le contenu HTML est affiché comme texte pour empêcher l’exécution de scripts.</p><label><input type="checkbox" id="share-enabled" checked> Lien activé</label><label><input type="checkbox" id="share-editor"> Lien éditeur (les visiteurs pourront modifier le fichier)</label><div class="urow"><input id="share-url" readonly placeholder="Le lien apparaîtra ici"><button id="share-copy">Copier</button></div><div class="row2"><button id="share-save" class="pri">Enregistrer</button><button id="share-close">Fermer</button></div></dialog>
+<dialog id="private-share-dialog"><h3 id="private-share-title">Partager avec un utilisateur FBI</h3><p class="mu">Seuls les comptes sélectionnés pourront accéder à cet élément. Le partage d’un dossier comprend ses fichiers et sous-dossiers.</p><div id="private-share-list"></div><div class="urow"><select id="private-share-user" style="flex:1"></select><select id="private-share-mode"><option value="view">Lecture seule</option><option value="edit">Édition</option></select><button id="private-share-add" class="pri">Partager</button></div><div class="row2"><button id="private-share-close">Fermer</button></div></dialog>
 <div id="offline-indicator" role="status">Hors ligne</div>
 <dialog id="pdlg">
   <h3 id="ptitle"></h3>
@@ -208,6 +212,7 @@ const $ = s => document.querySelector(s);
 const ce = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
 const SH = { id: 'sh', type: 'folder', pseudo: true, priv: false, name: 'Fichiers partagés' };
 const PV = { id: 'pv', type: 'folder', pseudo: true, priv: true, name: 'Mes fichiers privés' };
+const WITHME = { id: 'withme', type: 'folder', pseudo: true, priv: false, name: 'Partagés avec moi', received: true };
 let token = localStorage.getItem('t'),
     me = null,
     nodes = [],
@@ -526,6 +531,39 @@ $('#psave').onclick = async () => {
   $('#pdlg').close(); load();
 };
 
+
+let privateShareNode=null;
+async function openPrivateShare(n){
+  privateShareNode=n;
+  $('#private-share-title').textContent='Partager : '+n.name;
+  $('#private-share-dialog').showModal();
+  try{await refreshPrivateShares();}catch(e){alert(e.message);}
+}
+async function refreshPrivateShares(){
+  if(!privateShareNode)return;
+  const [users,grants]=await Promise.all([J('/api/share-users'),J('/api/nodes/'+privateShareNode.id+'/private-shares')]);
+  const list=$('#private-share-list');list.replaceChildren();
+  for(const g of grants){
+    const r=ce('div','urow');
+    r.append(ce('span','nm',g.username),ce('span','mu',g.can_edit?'Édition':'Lecture seule'));
+    const remove=ce('button','','Retirer');
+    remove.onclick=async()=>{await J('/api/nodes/'+privateShareNode.id+'/private-shares',{method:'DELETE',json:{user_id:g.user_id}});await refreshPrivateShares();};
+    r.append(remove);list.append(r);
+  }
+  if(!grants.length)list.append(ce('p','mu','Aucun utilisateur ajouté.'));
+  const select=$('#private-share-user');select.replaceChildren();
+  for(const u of users.filter(u=>!grants.some(g=>+g.user_id===+u.id))){const o=ce('option','',u.username);o.value=u.id;select.append(o);}
+  $('#private-share-add').disabled=!select.options.length;
+}
+$('#private-share-add').onclick=async()=>{
+  if(!privateShareNode)return;
+  try{
+    await J('/api/nodes/'+privateShareNode.id+'/private-shares',{method:'PUT',json:{user_id:+$('#private-share-user').value,can_edit:$('#private-share-mode').value==='edit'}});
+    await refreshPrivateShares();
+  }catch(e){alert(e.message);}
+};
+$('#private-share-close').onclick=()=>$('#private-share-dialog').close();
+
 // ---- Types de fichiers
 const ext = n => (n.split('.').pop() || '').toLowerCase();
 const K = { html: 'html', htm: 'html', md: 'md', markdown: 'md', png: 'img', jpg: 'img', jpeg: 'img', gif: 'img', webp: 'img', svg: 'img', bmp: 'img', ico: 'img', pdf: 'pdf' };
@@ -549,7 +587,7 @@ function row(n, d) {
   const r = ce('div', 'row' + (sel && sel.id === n.id ? ' on' : '') + (n.pseudo ? ' sec' : '') + (!n.pseudo && !n.edit ? ' ro' : ''));
   r.style.paddingLeft = 10 + d * 16 + 'px'; r.draggable = !n.pseudo;
   if (!n.pseudo) r.title = (isF ? '' : fmt(n.size)) + (n.edit ? '' : (isF ? '' : ' · ') + 'lecture seule');
-  r.append(mat(n.pseudo ? (n.priv ? 'lock' : 'group') : isF ? (open.has(n.id) ? 'folder_open' : 'folder') : icon(n.name)),
+  r.append(mat(n.pseudo ? (n.received ? 'folder_shared' : n.priv ? 'lock' : 'group') : isF ? (open.has(n.id) ? 'folder_open' : 'folder') : icon(n.name)),
     ce('span', 'nm', n.name + (n.lock ? ' (protégé)' : '')));
   r.onclick = e => { e.stopPropagation(); sel = n; if (isF) { open.has(n.id) ? open.delete(n.id) : open.add(n.id); render(); } else openNode(n); };
   r.oncontextmenu = e => { e.preventDefault(); e.stopPropagation(); sel = n; render(); menu(e, n); };
@@ -568,16 +606,16 @@ function row(n, d) {
 }
 function render() {
   const kids = {};
-  nodes.forEach(n => (kids[n.parent_id || (n.priv ? 'pv' : 'sh')] ??= []).push(n));
+  nodes.forEach(n => { const parent=nodes.find(p=>p.id===n.parent_id);const root=n.shared_with_me && (!parent || !parent.shared_with_me) ? 'withme' : (n.parent_id || (n.priv ? 'pv' : 'sh'));(kids[root] ??= []).push(n); });
   for (const k in kids) kids[k].sort((a, b) => (a.type === b.type ? 0 : a.type === 'folder' ? -1 : 1) || a.name.localeCompare(b.name));
   const t = $('#tree'); t.innerHTML = '';
   const walk = (key, d) => (kids[key] || []).forEach(n => {
     t.append(row(n, d));
     if (n.type === 'folder' && open.has(n.id)) walk(n.id, d + 1);
   });
-  [SH, PV].forEach(p => {
+  [SH, PV, WITHME].forEach(p => {
     t.append(row(p, 0));
-    if (open.has(p.id)) { walk(p.id, 1); if (!kids[p.id]) t.append(ce('div', 'empty', p.priv ? 'Visible uniquement par vous.' : 'Aucun fichier.')); }
+    if (open.has(p.id)) { walk(p.id, 1); if (!kids[p.id]) t.append(ce('div', 'empty', p.received ? 'Aucun élément partagé avec vous.' : p.priv ? 'Visible uniquement par vous.' : 'Aucun fichier.')); }
   });
 }
 $('#tree').onclick = () => { sel = null; render(); };
@@ -600,7 +638,8 @@ function menu(e, n) {
   if (real) {
     if (n.edit) items.push(['Renommer', () => rename(n)]);
     items.push(['Dupliquer', () => dup(n)], ['Télécharger', () => download(n)], ['Disponible hors ligne', () => cacheOffline(n)], ['Retirer du hors ligne', () => removeOffline(n)], ['Compresser en zip', () => zipIt(n)]);
-    if (n.type === 'file' && n.edit) items.push(['Partager…', () => openShare(n)]);
+    if (n.priv && !n.shared_with_me && n.edit) items.push(['Partager avec un utilisateur…', () => openPrivateShare(n)]);
+    if (n.type === 'file' && n.edit) items.push(['Partager par lien…', () => openShare(n)]);
     if (n.type === 'file' && ext(n.name) === 'zip') items.push(['Extraire ici', () => extract(n)]);
     if (me.role !== 'user' && !n.priv && isF) items.push(['Permissions…', () => perms(n)]);
     if (n.edit) items.push(['Supprimer', () => del(n), 'dg']);
