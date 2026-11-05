@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="FBI">
 <link rel="apple-touch-icon" href="assets/img/FBI-Logo.png">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0&display=swap">
 <link rel="shortcut icon" href="assets/img/FBI-Logo.png" type="image/x-icon">
 <style>
 :root{--bg:#eef1f5;--pn:#fff;--tx:#16212b;--mu:#6b7a88;--ln:#d9e0e7;--ac:#1b6ef3;--hv:#e6edf7;--dg:#c8321e}
@@ -122,6 +123,8 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 #file-find button{padding:4px 7px}
 .home-search{padding:12px 16px!important;margin:10px 0 20px;text-align:left;width:min(100%,560px);color:var(--mu)}
 @media(max-width:850px){#global-search-trigger{min-width:0}#global-search-trigger kbd{display:none}#bar{flex-wrap:wrap}#file-find-input{width:115px}}
+
+.material-symbols-rounded{font-family:"Material Symbols Rounded";font-weight:normal;font-style:normal;font-size:20px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;word-wrap:normal;direction:ltr;-webkit-font-feature-settings:"liga";font-feature-settings:"liga";-webkit-font-smoothing:antialiased;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -492,9 +495,9 @@ async function perms(n) {
 }
 function renderPerms() {
   const L = $('#plist'); L.innerHTML = '';
-  const label = r => r.type === 'all' ? '🌍 Tout le monde'
-    : r.type === 'user' ? '👤 ' + (prm.us.find(u => u.id === r.id)?.username || '(compte supprimé)')
-    : '👥 ' + (prm.gs.find(g => g.id === r.id)?.name || '(groupe supprimé)');
+  const label = r => r.type === 'all' ? 'Tout le monde'
+    : r.type === 'user' ? 'Utilisateur : ' + (prm.us.find(u => u.id === r.id)?.username || '(compte supprimé)')
+    : 'Groupe : ' + (prm.gs.find(g => g.id === r.id)?.name || '(groupe supprimé)');
   prm.rules.forEach((r, i) => {
     const row = ce('div', 'urow'); row.append(ce('span', 'nm', label(r)));
     const mk = (k, t) => {
@@ -510,7 +513,7 @@ function renderPerms() {
     : prm.from ? `Aucune règle ici : les règles du dossier « ${prm.from.name} » s'appliquent.` : 'Aucune règle : tout le monde peut voir et modifier ce dossier.';
   const has = (t, id) => prm.rules.some(r => r.type === t && r.id === id), sel = $('#psub'); sel.innerHTML = '';
   const opts = [];
-  if (!has('all', 0)) opts.push(['all:0', '🌍 Tout le monde']);
+  if (!has('all', 0)) opts.push(['all:0', 'Tout le monde']);
   prm.us.filter(u => !has('user', u.id)).forEach(u => opts.push(['user:' + u.id, '👤 ' + u.username]));
   prm.gs.filter(g => !has('group', g.id)).forEach(g => opts.push(['group:' + g.id, '👥 ' + g.name]));
   opts.forEach(([v, t]) => { const o = ce('option', '', t); o.value = v; sel.append(o); });
@@ -528,7 +531,8 @@ const ext = n => (n.split('.').pop() || '').toLowerCase();
 const K = { html: 'html', htm: 'html', md: 'md', markdown: 'md', png: 'img', jpg: 'img', jpeg: 'img', gif: 'img', webp: 'img', svg: 'img', bmp: 'img', ico: 'img', pdf: 'pdf' };
 const TXT = new Set(['txt','css','js','json','csv','tsv','xml','yml','yaml','log','ini','ts','py','sh','bash','c','h','cc','cpp','c++','cxx','hpp','cs','java','go','rs','php','rb','sql','toml','mjs','cjs']);
 const kind = n => K[ext(n)] || (TXT.has(ext(n)) ? 'txt' : 'bin'); // bin = pas d'aperçu : téléchargement
-const icon = n => ext(n) === 'zip' ? '🗜️' : ({ html: '🌐', md: '📝', img: '🖼️', pdf: '📕', txt: '📄', bin: '📦' })[kind(n)];
+const icon = n => ext(n) === 'zip' ? 'folder_zip' : ({ html: 'html', md: 'description', img: 'image', pdf: 'picture_as_pdf', txt: 'draft', bin: 'insert_drive_file' })[kind(n)];
+const mat = name => ce('span','material-symbols-rounded',name);
 const fmt = b => (b = +b) < 1024 ? b + ' o' : b < 1048576 ? (b / 1024).toFixed(1) + ' Ko' : b < 1073741824 ? (b / 1048576).toFixed(1) + ' Mo' : (b / 1073741824).toFixed(2) + ' Go';
 // Emplacement ciblé par une action : { parent: id|null, priv: espace privé ? }
 const tgt = n => !n ? { parent: null, priv: false } : n.pseudo ? { parent: null, priv: n.priv } : { parent: n.type === 'folder' ? n.id : n.parent_id, priv: n.priv };
@@ -545,8 +549,8 @@ function row(n, d) {
   const r = ce('div', 'row' + (sel && sel.id === n.id ? ' on' : '') + (n.pseudo ? ' sec' : '') + (!n.pseudo && !n.edit ? ' ro' : ''));
   r.style.paddingLeft = 10 + d * 16 + 'px'; r.draggable = !n.pseudo;
   if (!n.pseudo) r.title = (isF ? '' : fmt(n.size)) + (n.edit ? '' : (isF ? '' : ' · ') + 'lecture seule');
-  r.append(ce('span', '', n.pseudo ? (n.priv ? '🔒' : '👥') : isF ? (open.has(n.id) ? '📂' : '📁') : icon(n.name)),
-    ce('span', 'nm', n.name + (n.lock ? ' 🔑' : '')));
+  r.append(mat(n.pseudo ? (n.priv ? 'lock' : 'group') : isF ? (open.has(n.id) ? 'folder_open' : 'folder') : icon(n.name)),
+    ce('span', 'nm', n.name + (n.lock ? ' (protégé)' : '')));
   r.onclick = e => { e.stopPropagation(); sel = n; if (isF) { open.has(n.id) ? open.delete(n.id) : open.add(n.id); render(); } else openNode(n); };
   r.oncontextmenu = e => { e.preventDefault(); e.stopPropagation(); sel = n; render(); menu(e, n); };
   r.ondragstart = e => e.dataTransfer.setData('text/plain', n.id);
