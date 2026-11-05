@@ -1271,7 +1271,7 @@ function captureWorkspace(){
   const key=workspaceKey(cur),tab=workspaceTabs.get(key);
   if(!tab)return;
   const ta=$('#view .ed textarea');
-  if(ta){tab.draft=ta.value;tab.dirty=dirty;tab.cursor=ta.selectionStart;tab.base=collabBase;tab.revision=collabVersion;}
+  if(ta){tab.draft=ta.value;tab.dirty=dirty;tab.pendingDirty=dirty;tab.cursor=ta.selectionStart;tab.base=collabBase;tab.revision=collabVersion;}
   tab.name=cur.name;
 }
 function drawWorkspaceTabs(){
@@ -1323,13 +1323,14 @@ function restoreWorkspaceDraft(n){
   const tab=workspaceTabs.get(workspaceKey(n));
   if(!tab||tab.draft===undefined)return;
   const ta=$('#view .ed textarea');if(!ta)return;
-  if(tab.dirty){
+  if(tab.pendingDirty){
     ta.value=tab.draft;
     ta.dispatchEvent(new Event('input',{bubbles:true}));
     setDirty(true);
     collabBase=tab.base??collabBase;collabVersion=tab.revision??collabVersion;
     clearTimeout(autosaveTimer);autosaveTimer=null;scheduleAutosave();
   }
+  tab.pendingDirty=false;
   const position=Math.min(tab.cursor??0,ta.value.length);
   ta.setSelectionRange(position,position);
 }
