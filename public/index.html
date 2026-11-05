@@ -234,7 +234,19 @@ async function api(u, o = {}) {
   const target = u.startsWith('/') ? BASE_PATH + u : u;
   const r = await fetch(target, { method: o.method, body: o.body, headers: h });
   if (r.status === 401) { logout(); throw Error('Session expirée, reconnectez-vous.'); }
-  if (!r.ok) throw Error((await r.json().catch(() => ({}))).error || 'Erreur');
+  if (!r.ok) {
+    const type = r.headers.get('content-type') || '';
+    let detail = '';
+    if (type.includes('json')) {
+      const data = await r.json().catch(() => null);
+      detail = data?.error || data?.message || '';
+    } else {
+      const body = await r.text().catch(() => '');
+      // N'afficher que du texte court, sans injecter de HTML renvoyé par le serveur.
+      if (body && !/<[a-z][\\s\\S]*>/i.test(body)) detail = body.trim().slice(0, 180);
+    }
+    throw Error('HTTP ' + r.status + ' (' + (o.method || 'GET') + ' ' + u + ')' + (detail ? ' : ' + detail : ' — Vérifiez les journaux PHP/OVH et l’onglet Réseau.'));
+  }
   return r;
 }
 const J = async (u, o) => (await api(u, o)).json();
