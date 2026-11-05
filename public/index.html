@@ -586,7 +586,7 @@ async function refreshSettingsUsers(){
     const row=ce('div','urow'); row.append(ce('span','nm',u.username),ce('span','mu',u.role));
     if(u.role!=='root'&&u.id!==me.id&&(me.role==='root'||u.role==='user')){
       const pw=ce('button','','Mot de passe'); pw.onclick=async()=>{const v=await ask('Nouveau mot de passe pour '+u.username,'','password');if(v)try{await J('/api/users/'+u.id,{method:'PUT',json:{password:v}});alert('Mot de passe modifié.');}catch(e){alert(e.message);}};
-      const del=ce('button','','Supprimer'); del.onclick=async()=>{if(!await siteConfirm('Supprimer le compte « '+u.username+' » ?'))return;try{await J('/api/users/'+u.id,{method:'DELETE'});await refreshSettingsUsers();}catch(e){alert(e.message);}};
+      const del=ce('button','','Supprimer'); del.onclick=async()=>{if(!await siteConfirm('Supprimer le compte « '+u.username+' » ?',{danger:true}))return;try{await J('/api/users/'+u.id,{method:'DELETE'});await refreshSettingsUsers();}catch(e){alert(e.message);}};
       row.append(pw,del);
       if(me.role==='root'){const role=ce('button','',u.role==='admin'?'Retirer admin':'Passer admin');role.onclick=async()=>{try{await J('/api/users/'+u.id,{method:'PUT',json:{role:u.role==='admin'?'user':'admin'}});await refreshSettingsUsers();}catch(e){alert(e.message);}};row.append(role);}
     }
@@ -601,7 +601,7 @@ async function refreshSettingsGroups(){
   gs.forEach(g=>{
     const box=ce('div','grp'),head=ce('div','urow');head.append(ce('b','nm',g.name));
     const rename=ce('button','','Renommer');rename.onclick=async()=>{const n=await ask('Nouveau nom du groupe',g.name);if(n)try{await J('/api/groups/'+g.id,{method:'PUT',json:{name:n}});await refreshSettingsGroups();}catch(e){alert(e.message);}};
-    const remove=ce('button','','Supprimer');remove.onclick=async()=>{if(!await siteConfirm('Supprimer le groupe « '+g.name+' » et ses permissions ?'))return;try{await J('/api/groups/'+g.id,{method:'DELETE'});await refreshSettingsGroups();await load();}catch(e){alert(e.message);}};
+    const remove=ce('button','','Supprimer');remove.onclick=async()=>{if(!await siteConfirm('Supprimer le groupe « '+g.name+' » et ses permissions ?',{danger:true}))return;try{await J('/api/groups/'+g.id,{method:'DELETE'});await refreshSettingsGroups();await load();}catch(e){alert(e.message);}};
     head.append(rename,remove);box.append(head);const list=ce('div','mem');
     if(!members.length)list.append(ce('span','mu','Aucun utilisateur standard.'));
     members.forEach(u=>{const label=ce('label'),cb=ce('input');cb.type='checkbox';cb.value=u.id;cb.checked=g.members.map(Number).includes(Number(u.id));cb.onchange=async()=>{const selected=[...list.querySelectorAll('input:checked')].map(x=>Number(x.value));try{await J('/api/groups/'+g.id,{method:'PUT',json:{members:selected}});await load();}catch(e){alert(e.message);cb.checked=!cb.checked;}};label.append(cb,' '+u.username);list.append(label);});
@@ -623,7 +623,7 @@ async function refreshUsers() {
       };
       const del = ce('button', '', 'Supprimer');
       del.onclick = async () => {
-        if (!confirm(`Supprimer le compte « ${u.username} » ? Son espace privé sera supprimé, les fichiers partagés qu'il a créés sont conservés.`)) return;
+        if (!await siteConfirm(`Supprimer le compte « ${u.username} » ? Son espace privé sera supprimé, les fichiers partagés qu'il a créés sont conservés.`,{danger:true})) return;
         await api('/api/users/' + u.id, { method: 'DELETE' }); refreshUsers();
       };
       r.append(pw, del);
@@ -654,7 +654,7 @@ async function refreshGroups() {
     const rn = ce('button', '', 'Renommer');
     rn.onclick = async () => { const nm = await ask('Nouveau nom du groupe', g.name); if (nm) { await api('/api/groups/' + g.id, { method: 'PUT', json: { name: nm } }); refreshGroups(); } };
     const dl = ce('button', '', 'Supprimer');
-    dl.onclick = async () => { if (await siteConfirm(`Supprimer le groupe « ${g.name} » et ses permissions ?`)) { await api('/api/groups/' + g.id, { method: 'DELETE' }); refreshGroups(); load(); } };
+    dl.onclick = async () => { if (await siteConfirm(`Supprimer le groupe « ${g.name} » et ses permissions ?`,{danger:true})) { await api('/api/groups/' + g.id, { method: 'DELETE' }); refreshGroups(); load(); } };
     h.append(rn, dl); b.append(h);
     const m = ce('div', 'mem');
     if (!users.length) m.append(ce('span', 'mu', 'Aucun utilisateur standard.'));
@@ -879,7 +879,7 @@ async function rename(n) {
 }
 async function dup(n) { await api(`/api/nodes/${n.id}/duplicate`, { method: 'POST' }); await load(); }
 async function del(n) {
-  if (!confirm(`Supprimer « ${n.name} »${n.type === 'folder' ? ' et tout son contenu' : ''} ?`)) return;
+  if (!await siteConfirm(`Supprimer « ${n.name} »${n.type === 'folder' ? ' et tout son contenu' : ''} ?`,{danger:true})) return;
   await api('/api/nodes/' + n.id, { method: 'DELETE' });
   sel = null; await load();
 }
@@ -1150,7 +1150,7 @@ async function followWiki(t) {
   if (!cur) return;
   let name = t.split(/[#^]/)[0].trim().split('/').pop(); if (!name) return;
   if (!/\.[a-z0-9]+$/i.test(name)) name += '.md';
-  if (!confirm(`Le fichier « ${name} » n'existe pas. Le créer dans ce dossier ?`)) return;
+  if (!await siteConfirm(`Le fichier « ${name} » n'existe pas. Le créer dans ce dossier ?`)) return;
   const d = await J('/api/nodes', { method: 'POST', json: { name, type: 'file', parent_id: cur.parent_id, private: cur.priv } });
   await load(); const nn = nodes.find(x => x.id === d.id); if (nn) openNode(nn);
 }
@@ -1631,7 +1631,7 @@ async function startCollaboration(n){
       if(c.quote_text){const excerpt=ce('mark','collab-quote',c.quote_text);excerpt.title='Commenté par '+c.username;excerpt.onclick=()=>{const ta=$('#view .ed textarea');if(!ta)return;const start=ta.value.indexOf(c.quote_text);if(start>=0){ta.focus();ta.setSelectionRange(start,start+c.quote_text.length);}};item.append(excerpt);}
       item.append(ce('div','',c.body));
       if(c.resolved)item.append(ce('small','','Résolu'));
-      const remove=ce('button','','Supprimer');remove.type='button';remove.onclick=async()=>{if(!await siteConfirm('Supprimer ce commentaire ?'))return;try{await J('/api/nodes/'+n.id+'/comments/'+c.id,{method:'DELETE'});await refreshComments();}catch(e){alert(e.message);}};item.append(remove);
+      const remove=ce('button','','Supprimer');remove.type='button';remove.onclick=async()=>{if(!await siteConfirm('Supprimer ce commentaire ?',{danger:true}))return;try{await J('/api/nodes/'+n.id+'/comments/'+c.id,{method:'DELETE'});await refreshComments();}catch(e){alert(e.message);}};item.append(remove);
       const resolve=ce('button','',c.resolved?'Rouvrir':'Résoudre');
       resolve.type='button';
       resolve.onclick=async()=>{await J('/api/nodes/'+n.id+'/comments/'+c.id,{method:'PUT',json:{resolved:!c.resolved}});await refreshComments();};
