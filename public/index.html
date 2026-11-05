@@ -127,6 +127,12 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 .material-symbols-rounded{font-family:"Material Symbols Rounded";font-weight:normal;font-style:normal;font-size:20px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;word-wrap:normal;direction:ltr;-webkit-font-feature-settings:"liga";font-feature-settings:"liga";-webkit-font-smoothing:antialiased;vertical-align:middle}
 
 .sidebar-search{padding:10px 12px 4px}.sidebar-search #global-search-trigger{width:100%;max-width:none;justify-content:flex-start;box-sizing:border-box}.sidebar-search #global-search-trigger kbd{margin-left:auto}
+
+#collab-panel{border:1px solid var(--ln);border-radius:10px;padding:12px;margin:12px 0;display:grid;gap:10px}
+#collab-panel .collab-list{max-height:230px;overflow:auto;display:grid;gap:8px}
+#collab-panel .collab-item{border-bottom:1px solid var(--ln);padding-bottom:8px;white-space:pre-wrap;overflow-wrap:anywhere}
+#collab-panel .collab-item small{display:block;color:var(--mu)}
+#collab-panel textarea{width:100%;box-sizing:border-box;min-height:65px}
 </style>
 </head>
 <body>
@@ -224,6 +230,7 @@ let token = localStorage.getItem('t'),
     tm,
     autosaveTimer = null,
     autosaveBusy = false;
+let collabTimer=null,collabFileId=null,collabVersion=null;
 addEventListener('unhandledrejection', e => alert(e.reason.message || 'Erreur'));
 
 // ---- API
@@ -336,7 +343,7 @@ async function show() {
 
 // ---- Accueil et paramètres
 function showHome() {
-  closeFileFind();clearTimeout(autosaveTimer); autosaveTimer=null; cur = null; dirty = false; if (url) URL.revokeObjectURL(url); url = null;
+  stopCollaboration();closeFileFind();clearTimeout(autosaveTimer); autosaveTimer=null; cur = null; dirty = false; if (url) URL.revokeObjectURL(url); url = null;
   $('#title').textContent = 'Accueil'; $('#save').hidden = true; $('#dl').hidden = true; $('#share').hidden = true; $('#vm').hidden = true;
   const V = $('#view'); V.removeAttribute('data-m'); V.innerHTML = '';
   const wrap = ce('div','home'); wrap.append(ce('h1','',`Bonjour ${me.display_name || me.username} !`), ce('p','mu','Reprenez là où vous en étiez.'));
@@ -1143,6 +1150,7 @@ async function openNode(n) {
   cur = n; sel = n; dirty = false; if (url) URL.revokeObjectURL(url); url = null; render();
   V.innerHTML = ''; setDirty(false); $('#dl').hidden = false; $('#vm').hidden = true;
   $('#save').hidden = !(['html', 'md', 'txt'].includes(k) && n.edit); $('#share').hidden = !(n.type === 'file' && n.edit);
+  startCollaboration(n);
   if (k === 'bin') { // pas d'aperçu : taille + téléchargement (+ extraction pour un zip)
     const p = ce('div', 'bin'); p.append(ce('b', '', n.name), ce('span', 'mu', fmt(n.size) + ' · aperçu indisponible'));
     const b = ce('button', 'pri', 'Télécharger'); b.onclick = () => download(n); p.append(b);
@@ -1191,6 +1199,64 @@ async function openNode(n) {
     upd();
   }
 }
+
+function stopCollaboration(){
+  if(collabTimer)clearInterval(collabTimer);
+  collabTimer=null;collabFileId=null;collabVersion=null;
+  $('#collab-panel')?.remove();
+}
+async function startCollaboration(n){
+  if(!navigator.onLine)return;
+  collabFileId=n.id;
+  const panel=ce('section');panel.id='collab-panel';
+  const heading=ce('div','', 'Collaboration');
+  const present=ce('div','mu','Connexion…');
+  const list=ce('div','collab-list');
+  const input=ce('textarea');input.placeholder='Ajouter un commentaire…';input.maxLength=2000;
+  const send=ce('button','pri','Commenter');send.type='button';
+  panel.append(heading,present,list,input,send);
+  $('#view').prepend(panel);
+  async function refreshComments(){
+    const comments=await J('/api/nodes/'+n.id+'/comments');
+    if(collabFileId!==n.id)return;
+    list.replaceChildren();
+    for(const c of comments){
+      const item=ce('div','collab-item');
+      item.append(ce('strong','',c.username),ce('small','',c.created_at),ce('div','',c.body));
+      if(c.resolved)item.append(ce('small','','Résolu'));
+      const resolve=ce('button','',c.resolved?'Rouvrir':'Résoudre');
+      resolve.type='button';
+      resolve.onclick=async()=>{await J('/api/nodes/'+n.id+'/comments/'+c.id,{method:'PUT',json:{resolved:!c.resolved}});await refreshComments();};
+      item.append(resolve);list.append(item);
+    }
+    if(!comments.length)list.append(ce('p','mu','Aucun commentaire.'));
+  }
+  send.onclick=async()=>{
+    if(!input.value.trim())return;
+    try{await J('/api/nodes/'+n.id+'/comments',{method:'POST',json:{body:input.value}});input.value='';await refreshComments();}
+    catch(e){alert(e.message);}
+  };
+  const poll=async()=>{
+    if(collabFileId!==n.id||!navigator.onLine)return;
+    try{
+      const data=await J('/api/nodes/'+n.id+'/collaboration',{method:'POST'});
+      if(collabFileId!==n.id)return;
+      present.textContent='Sur ce fichier : '+(data.users.map(u=>u.name).join(', ')||'personne');
+      if(collabVersion && data.updated_at!==collabVersion && !dirty){
+        const ta=$('#view textarea');
+        if(ta && cur?.id===n.id){
+          const response=await api('/api/nodes/'+n.id+'/content');
+          ta.value=await response.text();ta.dispatchEvent(new Event('collab-refresh'));
+          const frame=$('#view iframe');if(frame?._refresh)frame._refresh();
+        }
+      }
+      collabVersion=data.updated_at;
+      await refreshComments();
+    }catch(e){if(collabFileId===n.id)present.textContent='Collaboration indisponible : '+e.message;}
+  };
+  poll();collabTimer=setInterval(poll,5000);
+}
+
 async function save() {
   const ta = $('#view textarea'); if (!cur || !ta || !cur.edit || autosaveBusy) return;
   const snapshot=ta.value, fileId=cur.id; autosaveBusy=true; try { await api('/api/nodes/' + fileId, { method: 'PUT', json: { content: snapshot } }); if(cur?.id===fileId){setDirty(ta.value!==snapshot);const st=$('.autosave');if(st)st.textContent='Enregistré · '+new Date().toLocaleTimeString();if(dirty)scheduleAutosave();} await load(); } finally { autosaveBusy=false; }
