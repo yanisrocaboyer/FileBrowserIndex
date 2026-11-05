@@ -80,6 +80,17 @@ if($uri==='/api/login'&&$method==='POST'){$u=one('SELECT * FROM users WHERE user
 if(str_starts_with($uri,'/api/')){
  $u=user();
  if($uri==='/api/me'&&$method==='GET')out($u);
+ if($uri==='/api/me/avatar'&&$method==='PUT'){
+  $avatar=$b['avatar']??null;
+  if($avatar!==null){
+   if(!is_string($avatar)||strlen($avatar)>150000)err(400,'Image trop volumineuse.');
+   $parts=explode(',',$avatar,2);
+   if(count($parts)!==2||!in_array($parts[0],['data:image/png;base64','data:image/jpeg;base64','data:image/webp;base64'],true))err(400,'Format non autorisé.');
+   $bytes=base64_decode($parts[1],true);
+   if($bytes===false||strlen($bytes)>100000||!getimagesizefromstring($bytes))err(400,'Image invalide.');
+  }
+  q('UPDATE users SET avatar=? WHERE id=?',[$avatar,$u['id']]);out(['ok'=>true]);
+ }
  if($uri==='/api/me/profile'&&$method==='PUT'){$name=trim((string)($b['name']??''));$un=trim((string)($b['username']??''));$r=one('SELECT password_hash FROM users WHERE id=?',[$u['id']]);if($name===''||len($name)>80)err(400,'Nom affiché invalide.');if(!validUser($un))err(400,'Identifiant invalide (3 à 32 caractères).');if(!$r||!password_verify((string)($b['password']??''),$r['password_hash']))err(403,'Mot de passe actuel incorrect.');try{q('UPDATE users SET display_name=?,username=? WHERE id=?',[$name,$un,$u['id']]);}catch(PDOException $e){if($e->getCode()==='23000')err(409,'Cet identifiant est déjà utilisé.');throw $e;}out(['ok'=>true]);}
  if($uri==='/api/me/password'&&$method==='PUT'){$r=one('SELECT password_hash FROM users WHERE id=?',[$u['id']]);if(!$r||!password_verify((string)($b['old']??''),$r['password_hash']))err(403,'Mot de passe actuel incorrect.');if(!validPw($b['password']??null))err(400,'Mot de passe : 6 caractères minimum.');q('UPDATE users SET password_hash=? WHERE id=?',[password_hash($b['password'],PASSWORD_BCRYPT),$u['id']]);out(['ok'=>true]);}
  if(preg_match('~^/api/users(?:/(\d+))?$~',$uri,$m)){admin($u);$id=(int)($m[1]??0);if(!$id&&$method==='GET')out(rows("SELECT id,username,role,created_at FROM users ORDER BY FIELD(role,'root','admin','user'),username"));if(!$id&&$method==='POST'){$role=($b['role']??'')==='admin'?'admin':'user';if($role==='admin'&&$u['role']!=='root')err(403,'Seul root peut créer un administrateur.');if(!validUser($b['username']??null)||!validPw($b['password']??null))err(400,'Identifiant : 3 à 32 caractères. Mot de passe : 6 minimum.');try{q('INSERT INTO users(username,password_hash,role) VALUES(?,?,?)',[$b['username'],password_hash($b['password'],PASSWORD_BCRYPT),$role]);}catch(PDOException $e){if($e->getCode()==='23000')err(409,'Cet identifiant existe déjà.');throw $e;}out(['id'=>(int)pdo()->lastInsertId()]);}if($id&&$method==='PUT'){target($u,$id);if(isset($b['role'])){if($u['role']!=='root')err(403,'Seul root change les rôles.');if(!in_array($b['role'],['admin','user'],true))err(400,'Rôle invalide.');q('UPDATE users SET role=? WHERE id=?',[$b['role'],$id]);}if(array_key_exists('password',$b)){if(!validPw($b['password']))err(400,'Mot de passe : 6 caractères minimum.');q('UPDATE users SET password_hash=? WHERE id=?',[password_hash($b['password'],PASSWORD_BCRYPT),$id]);}out(['ok'=>true]);}if($id&&$method==='DELETE'){target($u,$id);q('DELETE FROM nodes WHERE private_owner=? AND parent_id IS NULL',[$id]);q("DELETE FROM perms WHERE subject_type='user' AND subject_id=?",[$id]);q('DELETE FROM users WHERE id=?',[$id]);out(['ok'=>true]);}}
