@@ -231,8 +231,11 @@ async function api(u, o = {}) {
   const h = { ...(o.headers || {}) };
   if (token) h.Authorization = 'Bearer ' + token;
   if (o.json !== undefined) { h['Content-Type'] = 'application/json'; o.body = JSON.stringify(o.json); }
-  const target = u.startsWith('/') ? BASE_PATH + u : u;
-  const r = await fetch(target, { method: o.method, body: o.body, headers: h });
+  const requestedMethod = (o.method || 'GET').toUpperCase();
+  const tunnel = u.startsWith('/api/') && (requestedMethod === 'PUT' || requestedMethod === 'DELETE');
+  const endpoint = tunnel ? u + (u.includes('?') ? '&' : '?') + '_method=' + requestedMethod : u;
+  const target = endpoint.startsWith('/') ? BASE_PATH + endpoint : endpoint;
+  const r = await fetch(target, { method: tunnel ? 'POST' : requestedMethod, body: o.body, headers: h });
   if (r.status === 401) { logout(); throw Error('Session expirée, reconnectez-vous.'); }
   if (!r.ok) {
     const type = r.headers.get('content-type') || '';
