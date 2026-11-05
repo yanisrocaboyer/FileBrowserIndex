@@ -1295,6 +1295,14 @@ function drawWorkspaceTabs(){
     root.append(button);
   }
 }
+// Navigate open tabs without interfering with browser Ctrl+Tab.
+document.addEventListener('keydown',e=>{
+  if(!(e.ctrlKey||e.metaKey)||!e.altKey||!['ArrowLeft','ArrowRight'].includes(e.key))return;
+  const keys=[...workspaceTabs.keys()];if(keys.length<2)return;
+  e.preventDefault();
+  const index=keys.indexOf(activeWorkspace);
+  switchWorkspace(keys[(index+(e.key==='ArrowRight'?1:-1)+keys.length)%keys.length]);
+});
 async function closeWorkspace(key){
   const tab=workspaceTabs.get(key);if(!tab||tab.type!=='file')return;
   if(key===activeWorkspace)captureWorkspace();
