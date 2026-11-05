@@ -1282,6 +1282,7 @@ $('#editor-selection-menu').addEventListener('click',async e=>{
   ta.dispatchEvent(new Event('input',{bubbles:true}));ta.focus();
 });
 
+$('#view').addEventListener('input',e=>{if(e.target.matches('.ed textarea'))paintCommentHighlights();});
 function paintCommentHighlights(){
   const ed=$('#view .ed');if(!ed)return;
   let strip=ed.querySelector('.collab-annotations');
@@ -1356,7 +1357,7 @@ async function startCollaboration(n){
             if(collabFileId!==n.id || dirty)return;
             ta.value=await response.text();
             ta.dispatchEvent(new Event('input',{bubbles:false}));
-            setDirty(false);
+            setDirty(false);paintCommentHighlights();
             const frame=$('#view iframe');if(frame?._refresh)frame._refresh();
           }
           collabVersion=data.revision;
