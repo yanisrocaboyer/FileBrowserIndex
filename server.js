@@ -695,6 +695,14 @@ app.post('/api/nodes/:id/comments',auth,w(async(q,s)=>{
   await pool.query('INSERT INTO file_comments(node_id,user_id,body) VALUES(?,?,?)',[+q.params.id,q.user.id,body]);
   s.json({ok:true});
 }));
+app.delete('/api/nodes/:id/comments/:commentId',auth,w(async(q,s)=>{
+  const access=await collabAccess(q,s);if(!access)return;
+  const [[comment]]=await pool.query('SELECT user_id FROM file_comments WHERE id=? AND node_id=?',[+q.params.commentId,+q.params.id]);
+  if(!comment)return fail(s,404,'Commentaire introuvable.');
+  if(comment.user_id!==q.user.id&&!can(access.c,access.n.id,'e'))return fail(s,403,'Suppression non autorisée.');
+  await pool.query('DELETE FROM file_comments WHERE id=? AND node_id=?',[+q.params.commentId,+q.params.id]);
+  s.json({ok:true});
+}));
 app.put('/api/nodes/:id/comments/:commentId',auth,w(async(q,s)=>{
   const access=await collabAccess(q,s);if(!access)return;
   const [[comment]]=await pool.query('SELECT user_id FROM file_comments WHERE id=? AND node_id=?',[+q.params.commentId,+q.params.id]);
