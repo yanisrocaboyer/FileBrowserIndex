@@ -1186,7 +1186,7 @@ async function openNode(n) {
   } else {
     const ta = ce('textarea'); ta.value = await r.text(); ta.spellcheck = false; ta.readOnly = !n.edit;
     const ex=ext(n.name), isCode=CODE_EXTS.has(ex);
-    if (k === 'txt' && !isCode) { const ed=ce('div','ed');ed.append(ta,ce('div','autosave','Enregistrement automatique : toutes les minutes'));V.append(ed);ta.oninput = () => {setDirty(true);scheduleAutosave();}; return; }
+    if (k === 'txt' && !isCode) { const ed=ce('div','ed');ed.append(ta,ce('div','autosave','Enregistrement automatique : après 2 secondes d’inactivité'));V.append(ed);ta.oninput = () => {setDirty(true);clearTimeout(autosaveTimer);autosaveTimer=null;scheduleAutosave();}; return; }
     $('#vm').hidden = false; setMode(localStorage.getItem('vm') === 'ed' ? 'ed' : 'pv');
     const ed = ce('div', 'ed'); if (n.edit && !isCode) ed.append(toolbar(ta, k));
     if(isCode){const wrap=setupCodeEditor(ta,ex);ed.append(wrap);}else ed.append(ta);
@@ -1213,7 +1213,7 @@ async function openNode(n) {
       };
       f._refresh = upd; f.srcdoc = SHELL;
     }
-    ta.oninput = () => { setDirty(true); scheduleAutosave(); clearTimeout(tm); tm = setTimeout(upd, 200); };
+    ta.oninput = () => { setDirty(true);clearTimeout(autosaveTimer);autosaveTimer=null; scheduleAutosave(); clearTimeout(tm); tm = setTimeout(upd, 200); };
     upd();
   }
 }
@@ -1315,14 +1315,14 @@ async function startCollaboration(n){
       await refreshComments();
     }catch(e){if(collabFileId===n.id)present.textContent='Collaboration indisponible : '+e.message;}
   };
-  poll();collabTimer=setInterval(poll,5000);
+  poll();collabTimer=setInterval(poll,2000);
 }
 
 async function save() {
   const ta = $('#view textarea'); if (!cur || !ta || !cur.edit || autosaveBusy) return;
   const snapshot=ta.value, fileId=cur.id; autosaveBusy=true; try { await api('/api/nodes/' + fileId, { method: 'PUT', json: { content: snapshot } }); if(cur?.id===fileId){setDirty(ta.value!==snapshot);const st=$('.autosave');if(st)st.textContent='Enregistré · '+new Date().toLocaleTimeString();if(dirty)scheduleAutosave();} await load(); } finally { autosaveBusy=false; }
 }
-function scheduleAutosave(){if(autosaveTimer||!cur?.edit)return;autosaveTimer=setTimeout(async()=>{autosaveTimer=null;if(dirty){try{await save();}catch(e){const st=$('.autosave');if(st)st.textContent='Échec de la sauvegarde · '+e.message;if(dirty)scheduleAutosave();}}},60000);}
+function scheduleAutosave(){if(autosaveTimer||!cur?.edit)return;autosaveTimer=setTimeout(async()=>{autosaveTimer=null;if(dirty){try{await save();}catch(e){const st=$('.autosave');if(st)st.textContent='Échec de la sauvegarde · '+e.message;if(dirty)scheduleAutosave();}}},2000);}
 $('#save').onclick = save;
 $('#dl').onclick = () => cur && download(cur);
 addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); } });
