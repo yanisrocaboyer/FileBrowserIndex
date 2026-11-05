@@ -1368,6 +1368,8 @@ function renderInlineAnnotations(ta){
     mark.style.color='transparent';
     overlay.append(mark);
   }
+  overlay.scrollTop=ta.scrollTop;overlay.scrollLeft=ta.scrollLeft;
+  if(!overlay.firstChild)overlay.append(document.createTextNode(' '));
   // A zero-width caret must not occupy a character or shift the following text.
   // Cursor placement is measured with the same text mirror, without injecting glyphs.
   for(const u of collabUsers){
@@ -1389,7 +1391,6 @@ function renderInlineAnnotations(ta){
     caret.style.cssText='position:absolute;width:2px;pointer-events:none;background:'+collaboratorColor(u.id)+';left:'+(box.left-root.left+overlay.scrollLeft)+'px;top:'+(box.top-root.top+overlay.scrollTop)+'px;height:'+(parseFloat(cs.lineHeight)||parseFloat(cs.fontSize)*1.3)+'px;';
     overlay.append(caret);
   }
-  overlay.scrollTop=ta.scrollTop;overlay.scrollLeft=ta.scrollLeft;
 }
 function paintCommentHighlights(){
   const ta=$('#view .ed textarea');if(!ta)return;
