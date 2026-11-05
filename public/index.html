@@ -383,7 +383,7 @@ function applyTheme() {
 }
 async function showSettings(tab='account') {
   if (dirty && !confirm('Abandonner les modifications non enregistrées ?')) return;
-  closeFileFind();clearTimeout(autosaveTimer); autosaveTimer=null; cur=null; $('#title').textContent='Paramètres'; $('#save').hidden=true; $('#dl').hidden=true; $('#share').hidden=true; $('#vm').hidden=true;
+  stopCollaboration();closeFileFind();clearTimeout(autosaveTimer); autosaveTimer=null; cur=null; $('#title').textContent='Paramètres'; $('#save').hidden=true; $('#dl').hidden=true; $('#share').hidden=true; $('#vm').hidden=true;
   const V=$('#view'); V.removeAttribute('data-m'); V.innerHTML='';
   const root=ce('div','settings'); root.append(ce('h1','','Paramètres'),ce('p','mu','Compte, utilisateurs, groupes et apparence du site.'));
   const nav=ce('nav'); [['account','Compte'],['access','Utilisateurs & groupes'],['theme','Theme']].forEach(([id,label])=>{const b=ce('button',id===tab?'pri':'',label);b.onclick=()=>showSettings(id);nav.append(b)});root.append(nav);
@@ -1185,7 +1185,7 @@ function setupCodeEditor(ta, extName) {
 
 async function openNode(n) {
   if (dirty && !confirm('Abandonner les modifications non enregistrées ?')) return;
-  closeFileFind();clearTimeout(autosaveTimer); autosaveTimer=null;
+  stopCollaboration();closeFileFind();clearTimeout(autosaveTimer); autosaveTimer=null;
   const k = kind(n.name), V = $('#view');
   cur = n; sel = n; dirty = false; if (url) URL.revokeObjectURL(url); url = null; render();
   V.innerHTML = ''; setDirty(false); $('#dl').hidden = false; $('#vm').hidden = true;
@@ -1212,7 +1212,7 @@ async function openNode(n) {
     $('#vm').hidden = false; setMode(localStorage.getItem('vm') === 'ed' ? 'ed' : 'pv');
     const ed = ce('div', 'ed'); if (n.edit && !isCode) ed.append(toolbar(ta, k));
     if(isCode){const wrap=setupCodeEditor(ta,ex);ed.append(wrap);}else ed.append(ta);
-    const status=ce('div','autosave','Enregistrement automatique : toutes les minutes');ed.append(status);
+    const status=ce('div','autosave','Enregistrement automatique : après 2 secondes d’inactivité');ed.append(status);
     const f = ce('iframe'); f.setAttribute('sandbox', '');
     let previewFrame=f;
     if(k==='html'){
