@@ -431,12 +431,13 @@ async function show() {
     else throw e;
   }
   $('#me').textContent = (me.display_name || me.username) + ' · @' + me.username + (me.role === 'user' ? '' : ' (' + me.role + ')');
-  showHome(); updateOnlineBadge();
+  workspaceTabs.clear();workspaceTabs.set('home',{key:'home',name:'Accueil',type:'home'});activeWorkspace='home';drawWorkspaceTabs();showHome(); updateOnlineBadge();
 }
 
 
 // ---- Accueil et paramètres
 function showHome() {
+  if(!workspaceSwitching){captureWorkspace();activeWorkspace='home';drawWorkspaceTabs();dirty=false;}
   stopCollaboration();closeFileFind();clearTimeout(autosaveTimer); autosaveTimer=null; cur = null; dirty = false; if (url) URL.revokeObjectURL(url); url = null;
   $('#title').textContent = 'Accueil'; $('#save').hidden = true; $('#dl').hidden = true; $('#share').hidden = true; $('#vm').hidden = true;
   const V = $('#view'); V.removeAttribute('data-m'); V.innerHTML = '';
@@ -457,7 +458,8 @@ function applyTheme() {
   document.querySelectorAll('#view iframe').forEach(f => { if (f._md && f.contentWindow) f.contentWindow.postMessage({type:'render',html:f._lastHtml||'',theme,css},'*'); });
 }
 async function showSettings(tab='account') {
-  if (dirty && !confirm('Abandonner les modifications non enregistrées ?')) return;
+  if(!workspaceSwitching){captureWorkspace();activeWorkspace='settings';if(!workspaceTabs.has('settings'))workspaceTabs.set('settings',{key:'settings',name:'Paramètres',type:'settings'});drawWorkspaceTabs();dirty=false;}
+  const settingsTab=workspaceTabs.get('settings');if(settingsTab)settingsTab.section=tab;
   stopCollaboration();closeFileFind();clearTimeout(autosaveTimer); autosaveTimer=null; cur=null; $('#title').textContent='Paramètres'; $('#save').hidden=true; $('#dl').hidden=true; $('#share').hidden=true; $('#vm').hidden=true;
   const V=$('#view'); V.removeAttribute('data-m'); V.innerHTML='';
   const root=ce('div','settings'); root.append(ce('h1','','Paramètres'),ce('p','mu','Compte, utilisateurs, groupes et apparence du site.'));
@@ -896,7 +898,7 @@ function closeView() {
   $('#title').textContent = ''; $('#save').hidden = true; $('#dl').hidden = true; $('#vm').hidden = true;
   $('#view').innerHTML = '<p id="hint">Sélectionnez un fichier pour l\'ouvrir.</p>';
 }
-function setDirty(d) { dirty = d; $('#title').textContent = cur.name + (d ? ' ●' : '') + (cur.edit ? '' : ' (lecture seule)'); }
+function setDirty(d) { dirty = d; if(!cur)return; $('#title').textContent = cur.name + (d ? ' ●' : '') + (cur.edit ? '' : ' (lecture seule)'); const tab=workspaceTabs.get(workspaceKey(cur));if(tab){tab.dirty=d;tab.name=cur.name;drawWorkspaceTabs();} }
 // ---- Aperçu markdown façon Obsidian : [[liens]], ![[images]], callouts, ==surlignage==, #tags, mermaid
 const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -1388,6 +1390,7 @@ async function openNode(n) {
     ta.oninput = () => { setDirty(true);clearTimeout(autosaveTimer);autosaveTimer=null; scheduleAutosave(); clearTimeout(tm); tm = setTimeout(upd, 200); };
     upd();
   }
+  restoreWorkspaceDraft(n);
 }
 
 $('#collab-comments-btn').onclick=()=>{const p=$('#collab-panel');if(p)p.hidden=!p.hidden;$('#collab-popover').hidden=true;};
