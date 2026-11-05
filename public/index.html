@@ -154,6 +154,7 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 .collab-quote{display:block;padding:5px 8px;margin:6px 0;border-radius:4px;background:#ffe18a;color:#222;cursor:pointer;white-space:pre-wrap;overflow-wrap:anywhere}
 .collab-quote:hover{background:#ffc54a}
 .collab-annotations{padding:8px;border-bottom:1px solid var(--ln);max-height:140px;overflow:auto}.collab-annotations[hidden]{display:none}.collab-annotations .collab-quote{display:inline-block;margin:4px;font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
+.collab-inline-overlay{user-select:none!important;contain:paint}.collab-inline-overlay span{border-radius:2px}
 </style>
 </head>
 <body>
@@ -1314,6 +1315,45 @@ async function mergeRemoteChanges(fileId,revision){
   if(dirty)scheduleAutosave();
   return true;
 }
+function collaboratorColor(id){
+  const colors=['#e879f9','#38bdf8','#fb923c','#4ade80','#f472b6','#facc15','#a78bfa','#2dd4bf'];
+  return colors[Math.abs(Number(id)||0)%colors.length];
+}
+function renderInlineAnnotations(ta){
+  const parent=ta.parentElement;if(!parent)return;
+  let overlay=parent.querySelector(':scope > .collab-inline-overlay');
+  if(!overlay){overlay=ce('pre','collab-inline-overlay');parent.append(overlay);}
+  const style=getComputedStyle(ta);
+  parent.style.position='relative';
+  Object.assign(overlay.style,{position:'absolute',left:ta.offsetLeft+'px',top:ta.offsetTop+'px',width:ta.offsetWidth+'px',height:ta.offsetHeight+'px',padding:style.padding,margin:'0',border:style.border,boxSizing:'border-box',font:style.font,lineHeight:style.lineHeight,letterSpacing:style.letterSpacing,tabSize:style.tabSize,whiteSpace:'pre-wrap',overflowWrap:'break-word',wordBreak:style.wordBreak,overflow:'hidden',pointerEvents:'none',zIndex:'5',color:'transparent',background:'transparent'});
+  const text=ta.value, ranges=[];
+  for(const c of collabComments){
+    if(!c.quote_text||Number(c.resolved))continue;
+    let pos=Number(c.selection_start);
+    if(!Number.isInteger(pos)||text.slice(pos,pos+c.quote_text.length)!==c.quote_text)pos=text.indexOf(c.quote_text);
+    if(pos>=0)ranges.push({start:pos,end:pos+c.quote_text.length,color:'#ffe16a88',title:'Commenté par '+c.username,kind:'comment'});
+  }
+  for(const u of collabUsers){
+    if(Number(u.id)===Number(me?.id)||u.cursor_start==null)continue;
+    const pos=Math.max(0,Math.min(text.length,Number(u.cursor_start)));
+    const end=Math.max(pos,Math.min(text.length,Number(u.cursor_end??pos)));
+    ranges.push({start:pos,end:Math.max(pos+1,end),color:collaboratorColor(u.id)+'66',title:u.name+' est ici',kind:'cursor',user:u});
+  }
+  const points=new Set([0,text.length]);for(const x of ranges){points.add(Math.min(x.start,text.length));points.add(Math.min(x.end,text.length));}
+  const sorted=[...points].sort((x,y)=>x-y);overlay.replaceChildren();
+  for(let i=0;i<sorted.length-1;i++){
+    const start=sorted[i],end=sorted[i+1],segment=text.slice(start,end);
+    const marks=ranges.filter(x=>x.start<end&&x.end>start);
+    if(!marks.length){overlay.append(document.createTextNode(segment));continue;}
+    const mark=ce('span','',segment);mark.style.background=marks.find(x=>x.kind==='comment')?.color||marks[0].color;
+    mark.style.color='transparent';mark.title=marks.map(x=>x.title).join(' · ');
+    const cursor=marks.find(x=>x.kind==='cursor'&&x.start===start);
+    if(cursor){mark.style.borderLeft='2px solid '+collaboratorColor(cursor.user.id);}
+    overlay.append(mark);
+  }
+  if(!text.length)overlay.append(document.createTextNode(' '));
+  overlay.scrollTop=ta.scrollTop;overlay.scrollLeft=ta.scrollLeft;
+}
 function paintCommentHighlights(){
   const ed=$('#view .ed');if(!ed)return;
   let strip=ed.querySelector('.collab-annotations');
@@ -1321,6 +1361,7 @@ function paintCommentHighlights(){
   strip.replaceChildren();
   const ta=ed.querySelector('textarea');if(!ta)return;
   const active=collabComments.filter(c=>c.quote_text&&!Number(c.resolved)&&ta.value.includes(c.quote_text));
+  renderInlineAnnotations(ta);
   if(!active.length){strip.hidden=true;return;}
   strip.hidden=false;strip.append(ce('strong','','Passages commentés : '));
   for(const c of active){
