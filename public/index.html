@@ -133,6 +133,14 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 #collab-panel .collab-item{border-bottom:1px solid var(--ln);padding-bottom:8px;white-space:pre-wrap;overflow-wrap:anywhere}
 #collab-panel .collab-item small{display:block;color:var(--mu)}
 #collab-panel textarea{width:100%;box-sizing:border-box;min-height:65px}
+
+#collab-popover{position:absolute;right:18px;top:75px;z-index:40;background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:12px;box-shadow:0 8px 25px #0003;min-width:220px;max-width:320px}
+#collab-popover[hidden]{display:none}
+#collab-panel{position:absolute;right:12px;top:76px;z-index:35;width:min(340px,calc(100% - 24px));max-height:calc(100% - 95px);overflow:auto;background:var(--bg);box-shadow:0 8px 30px #0004}
+#collab-panel[hidden]{display:none}
+#collab-presence-btn,#collab-comments-btn{display:inline-flex;align-items:center;gap:5px}
+.collab-avatar{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--hv);border:1px solid var(--ln);font-weight:700;margin-right:8px}
+#view{position:relative}
 </style>
 </head>
 <body>
@@ -164,7 +172,8 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
     <div id="prog" hidden><div id="pl"></div><div class="bar"><i id="pf"></i></div></div>
   </aside>
   <main>
-    <div id="bar"><span id="title"></span><div><div id="file-find" hidden><input id="file-find-input" type="search" placeholder="Chercher dans le fichier" aria-label="Chercher dans le fichier"><span id="file-find-count" aria-live="polite"></span><button id="file-find-prev" type="button" title="Occurrence précédente">↑</button><button id="file-find-next" type="button" title="Occurrence suivante">↓</button><button id="file-find-close" type="button" title="Fermer la recherche">×</button></div><div id="vm" hidden><button data-m="ed">Édition</button><button data-m="live">Live</button><button data-m="pv">Lecture</button></div><button id="share" hidden>Partager</button><button id="dl" hidden>Télécharger</button><button id="save" class="pri" hidden>Enregistrer</button></div></div>
+    <div id="bar"><span id="title"></span><div><div id="file-find" hidden><input id="file-find-input" type="search" placeholder="Chercher dans le fichier" aria-label="Chercher dans le fichier"><span id="file-find-count" aria-live="polite"></span><button id="file-find-prev" type="button" title="Occurrence précédente">↑</button><button id="file-find-next" type="button" title="Occurrence suivante">↓</button><button id="file-find-close" type="button" title="Fermer la recherche">×</button></div><div id="vm" hidden><button data-m="ed">Édition</button><button data-m="live">Live</button><button data-m="pv">Lecture</button></div><button id="collab-presence-btn" hidden title="Personnes présentes" aria-label="Personnes présentes"><span class="material-symbols-rounded">group</span><span id="collab-presence-count"></span></button><button id="collab-comments-btn" hidden title="Commentaires" aria-label="Commentaires"><span class="material-symbols-rounded">chat_bubble</span></button><button id="share" hidden>Partager</button><button id="dl" hidden>Télécharger</button><button id="save" class="pri" hidden>Enregistrer</button></div></div>
+    <div id="collab-popover" hidden></div>
     <div id="view"><center><p id="hint">Sélectionnez un fichier pour l'ouvrir.</p></center></div>
   </main>
 </div>
@@ -1200,15 +1209,18 @@ async function openNode(n) {
   }
 }
 
+$('#collab-comments-btn').onclick=()=>{const p=$('#collab-panel');if(p)p.hidden=!p.hidden;$('#collab-popover').hidden=true;};
+$('#collab-presence-btn').onclick=()=>{const p=$('#collab-popover');p.hidden=!p.hidden;const c=$('#collab-panel');if(c)c.hidden=true;};
 function stopCollaboration(){
   if(collabTimer)clearInterval(collabTimer);
   collabTimer=null;collabFileId=null;collabVersion=null;
-  $('#collab-panel')?.remove();
+  $('#collab-panel')?.remove();$('#collab-comments-btn').hidden=true;$('#collab-presence-btn').hidden=true;$('#collab-popover').hidden=true;
 }
 async function startCollaboration(n){
   if(!navigator.onLine)return;
   collabFileId=n.id;
-  const panel=ce('section');panel.id='collab-panel';
+  const panel=ce('section');panel.id='collab-panel';panel.hidden=true;
+  $('#collab-comments-btn').hidden=false;$('#collab-presence-btn').hidden=false;
   const heading=ce('div','', 'Collaboration');
   const present=ce('div','mu','Connexion…');
   const list=ce('div','collab-list');
@@ -1242,6 +1254,9 @@ async function startCollaboration(n){
       const data=await J('/api/nodes/'+n.id+'/collaboration',{method:'POST'});
       if(collabFileId!==n.id)return;
       present.textContent='Sur ce fichier : '+(data.users.map(u=>u.name).join(', ')||'personne');
+      $('#collab-presence-count').textContent=String(data.users.length);
+      const people=$('#collab-popover');people.replaceChildren(ce('strong','','Personnes présentes'));
+      for(const u of data.users){const line=ce('div','urow');const initials=(u.name||u.username||'?').split(/\\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();line.append(ce('span','collab-avatar',initials),ce('span','',u.name||u.username));people.append(line);}
       if(collabVersion && data.updated_at!==collabVersion && !dirty){
         const ta=$('#view textarea');
         if(ta && cur?.id===n.id){
