@@ -1326,62 +1326,76 @@ function renderInlineAnnotations(ta){
   const parent=ta.parentElement;if(!parent)return;
   let overlay=parent.querySelector(':scope > .collab-inline-overlay');
   if(!overlay){overlay=ce('pre','collab-inline-overlay');parent.append(overlay);}
-  const style=getComputedStyle(ta);
+  const cs=getComputedStyle(ta);
+  const parentRect=parent.getBoundingClientRect(), rect=ta.getBoundingClientRect();
   parent.style.position='relative';
-  Object.assign(overlay.style,{position:'absolute',left:ta.offsetLeft+'px',top:ta.offsetTop+'px',width:ta.offsetWidth+'px',height:ta.offsetHeight+'px',padding:style.padding,margin:'0',border:style.border,boxSizing:'border-box',font:style.font,lineHeight:style.lineHeight,letterSpacing:style.letterSpacing,tabSize:style.tabSize,whiteSpace:'pre-wrap',overflowWrap:'break-word',wordBreak:style.wordBreak,overflow:'hidden',pointerEvents:'none',zIndex:'5',color:'transparent',background:'transparent'});
-  const text=ta.value, ranges=[];
+  // Reproduce the textarea's exact text geometry, including its internal scrolling.
+  Object.assign(overlay.style,{
+    position:'absolute',left:(rect.left-parentRect.left+parent.scrollLeft)+'px',
+    top:(rect.top-parentRect.top+parent.scrollTop)+'px',
+    width:rect.width+'px',height:rect.height+'px',
+    padding:cs.padding,border:cs.border,boxSizing:'border-box',
+    fontFamily:cs.fontFamily,fontSize:cs.fontSize,fontWeight:cs.fontWeight,
+    fontStyle:cs.fontStyle,lineHeight:cs.lineHeight,letterSpacing:cs.letterSpacing,
+    tabSize:cs.tabSize,textAlign:cs.textAlign,whiteSpace:'pre-wrap',
+    overflowWrap:cs.overflowWrap,wordBreak:cs.wordBreak,
+    overflow:'hidden',pointerEvents:'none',zIndex:'5',
+    color:'transparent',background:'transparent'
+  });
+  const value=ta.value,ranges=[];
   for(const c of collabComments){
     if(!c.quote_text||Number(c.resolved))continue;
     let pos=Number(c.selection_start);
-    if(!Number.isInteger(pos)||text.slice(pos,pos+c.quote_text.length)!==c.quote_text)pos=text.indexOf(c.quote_text);
-    if(pos>=0)ranges.push({start:pos,end:pos+c.quote_text.length,color:'#ffe16a88',title:'Commenté par '+c.username,kind:'comment'});
+    if(!Number.isInteger(pos)||value.slice(pos,pos+c.quote_text.length)!==c.quote_text)pos=value.indexOf(c.quote_text);
+    if(pos>=0)ranges.push({start:pos,end:pos+c.quote_text.length,color:'#ffe16a88',kind:'comment'});
   }
   for(const u of collabUsers){
     if(Number(u.id)===Number(me?.id)||u.cursor_start==null)continue;
-    const pos=Math.max(0,Math.min(text.length,Number(u.cursor_start)));
-    const end=Math.max(pos,Math.min(text.length,Number(u.cursor_end??pos)));
-    ranges.push({start:pos,end:Math.max(pos+1,end),color:collaboratorColor(u.id)+'66',title:u.name+' est ici',kind:'cursor',user:u});
+    const start=Math.max(0,Math.min(value.length,Number(u.cursor_start)));
+    const end=Math.max(0,Math.min(value.length,Number(u.cursor_end??start)));
+    if(start!==end)ranges.push({start:Math.min(start,end),end:Math.max(start,end),color:collaboratorColor(u.id)+'66',kind:'selection'});
   }
-  const points=new Set([0,text.length]);for(const x of ranges){points.add(Math.min(x.start,text.length));points.add(Math.min(x.end,text.length));}
-  const sorted=[...points].sort((x,y)=>x-y);overlay.replaceChildren();
+  const points=new Set([0,value.length]);
+  for(const range of ranges){points.add(range.start);points.add(range.end);}
+  const sorted=[...points].sort((a,b)=>a-b);
+  overlay.replaceChildren();
   for(let i=0;i<sorted.length-1;i++){
-    const start=sorted[i],end=sorted[i+1],segment=text.slice(start,end);
-    const marks=ranges.filter(x=>x.start<end&&x.end>start);
-    if(!marks.length){overlay.append(document.createTextNode(segment));continue;}
-    const mark=ce('span','',segment);mark.style.background=marks.find(x=>x.kind==='comment')?.color||marks[0].color;
-    mark.style.color='transparent';mark.title=marks.map(x=>x.title).join(' · ');mark.style.pointerEvents='auto';
-    mark.onclick=()=>{ta.focus();ta.setSelectionRange(start,end);};
-    const cursor=marks.find(x=>x.kind==='cursor'&&x.start===start);
-    if(cursor){mark.style.borderLeft='2px solid '+collaboratorColor(cursor.user.id);}
+    const start=sorted[i],end=sorted[i+1],segment=value.slice(start,end);
+    const active=ranges.filter(x=>x.start<end&&x.end>start);
+    if(!active.length){overlay.append(document.createTextNode(segment));continue;}
+    const mark=ce('span','',segment);
+    mark.style.background=active.find(x=>x.kind==='comment')?.color||active[0].color;
+    mark.style.color='transparent';
     overlay.append(mark);
   }
+  // A zero-width caret must not occupy a character or shift the following text.
+  // Cursor placement is measured with the same text mirror, without injecting glyphs.
   for(const u of collabUsers){
     if(Number(u.id)===Number(me?.id)||u.cursor_start==null)continue;
-    const pos=Math.max(0,Math.min(text.length,Number(u.cursor_start)));
-    if(pos!==text.length)continue;
-    const cursor=ce('span','collab-caret','│');
-    cursor.style.color=collaboratorColor(u.id);cursor.title=(u.name||u.username)+' est ici';
-    overlay.append(cursor);
+    const position=Math.max(0,Math.min(value.length,Number(u.cursor_start)));
+    const range=document.createRange();
+    const walker=document.createTreeWalker(overlay,NodeFilter.SHOW_TEXT);
+    let node,remaining=position,found=null;
+    while((node=walker.nextNode())){
+      if(remaining<=node.textContent.length){found={node,offset:remaining};break;}
+      remaining-=node.textContent.length;
+    }
+    if(!found){node=overlay.lastChild;if(node?.nodeType===3)found={node,offset:node.textContent.length};}
+    if(!found)continue;
+    range.setStart(found.node,found.offset);range.collapse(true);
+    const box=range.getBoundingClientRect(),root=overlay.getBoundingClientRect();
+    if(!box||!root)continue;
+    const caret=ce('span','collab-caret');
+    caret.style.cssText='position:absolute;width:2px;pointer-events:none;background:'+collaboratorColor(u.id)+';left:'+(box.left-root.left+overlay.scrollLeft)+'px;top:'+(box.top-root.top+overlay.scrollTop)+'px;height:'+(parseFloat(cs.lineHeight)||parseFloat(cs.fontSize)*1.3)+'px;';
+    overlay.append(caret);
   }
-  if(!text.length&&!collabUsers.length)overlay.append(document.createTextNode(' '));
   overlay.scrollTop=ta.scrollTop;overlay.scrollLeft=ta.scrollLeft;
 }
 function paintCommentHighlights(){
-  const ed=$('#view .ed');if(!ed)return;
-  let strip=ed.querySelector('.collab-annotations');
-  if(!strip){strip=ce('div','collab-annotations');ed.prepend(strip);}
-  strip.replaceChildren();
-  const ta=ed.querySelector('textarea');if(!ta)return;
-  const active=collabComments.filter(c=>c.quote_text&&!Number(c.resolved)&&ta.value.includes(c.quote_text));
+  const ta=$('#view .ed textarea');if(!ta)return;
+  // Keep the highlights directly behind the original text; no extra block above the editor.
+  $('#view .collab-annotations')?.remove();
   renderInlineAnnotations(ta);
-  if(!active.length){strip.hidden=true;return;}
-  strip.hidden=false;strip.append(ce('strong','','Passages commentés : '));
-  for(const c of active){
-    const mark=ce('mark','collab-quote',c.quote_text.slice(0,100));
-    mark.title='Commenté par '+c.username;
-    mark.onclick=()=>{const pos=ta.value.indexOf(c.quote_text);if(pos>=0){ta.focus();ta.setSelectionRange(pos,pos+c.quote_text.length);}};
-    strip.append(mark);
-  }
 }
 function stopCollaboration(){
   if(collabTimer)clearInterval(collabTimer);
