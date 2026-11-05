@@ -63,6 +63,7 @@ async function initDb() {
   if (!(await hasCol('users', 'avatar'))) await pool.query('ALTER TABLE users ADD COLUMN avatar MEDIUMTEXT NULL');
   if (!(await hasCol('users', 'display_name')))
     await pool.query('ALTER TABLE users ADD COLUMN display_name VARCHAR(80) NULL');
+  if (!(await hasCol('nodes', 'revision'))) await pool.query('ALTER TABLE nodes ADD COLUMN revision INT NOT NULL DEFAULT 0');
   if (!(await hasCol('nodes', 'private_owner')))
     await pool.query('ALTER TABLE nodes ADD COLUMN private_owner INT NULL');
   const [fks] = await pool.query(
@@ -575,15 +576,17 @@ app.put('/api/nodes/:id', auth, w(async (q, s) => {
   if ('content' in b && n.type === 'file') {
     const buf = Buffer.from(String(b.content), 'utf8');
 
-    sets.push('content=?', 'size=?');
+    sets.push('content=?', 'size=?', 'revision=revision+1');
     v.push(buf, buf.length);
   }
 
   if (sets.length) {
-    await pool.query(
-      `UPDATE nodes SET ${sets.join(',')} WHERE id=?`,
-      [...v, n.id]
-    );
+    if ('content' in b && Number.isInteger(b.expected_revision)) {
+      const [result] = await pool.query(`UPDATE nodes SET ${sets.join(',')} WHERE id=? AND revision=?`, [...v,n.id,b.expected_revision]);
+      if (!result.affectedRows) return fail(s,409,'Le fichier a été modifié par un autre utilisateur. Rechargez sa version avant de sauvegarder.');
+    } else {
+      await pool.query(`UPDATE nodes SET ${sets.join(',')} WHERE id=?`, [...v,n.id]);
+    }
   }
 
   s.json({ ok: true, id: n.id, copied: false });
@@ -689,8 +692,8 @@ async function collabAccess(q,s){
 app.get('/api/nodes/:id/collaboration',auth,w(async(q,s)=>{
   if(!await collabAccess(q,s))return;
   const [users]=await pool.query('SELECT u.id,u.username,u.avatar,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[+q.params.id]);
-  const [[version]]=await pool.query('SELECT updated_at FROM nodes WHERE id=?',[+q.params.id]);
-  s.json({users,updated_at:version.updated_at});
+  const [[version]]=await pool.query('SELECT updated_at,revision FROM nodes WHERE id=?',[+q.params.id]);
+  s.json({users,updated_at:version.updated_at,revision:version.revision});
 }));
 app.post('/api/nodes/:id/collaboration',auth,w(async(q,s)=>{
   if(!await collabAccess(q,s))return;
