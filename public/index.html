@@ -156,6 +156,8 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 .collab-annotations{padding:8px;border-bottom:1px solid var(--ln);max-height:140px;overflow:auto}.collab-annotations[hidden]{display:none}.collab-annotations .collab-quote{display:inline-block;margin:4px;font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
 .collab-inline-overlay{user-select:none!important;contain:paint}.collab-inline-overlay span{border-radius:2px}
 .collab-inline-overlay .collab-caret{font-weight:900;color:inherit;pointer-events:auto}
+::highlight(fbi-comments){background:rgba(255,207,68,.48)}
+::highlight(fbi-selections){background:rgba(64,184,255,.35)}
 </style>
 </head>
 <body>
@@ -1177,7 +1179,7 @@ const CODE_EXTS=new Set(['py','json','js','mjs','cjs','ts','c','h','cc','cpp','c
 const langForExt=x=>({py:'python',js:'javascript',mjs:'javascript',cjs:'javascript',ts:'typescript',cc:'cpp',cxx:'cpp',hpp:'cpp',cs:'csharp',rs:'rust',sh:'bash',yml:'yaml'}[x]||x);
 function setupCodeEditor(ta, extName) {
   const wrap=ce('div','code-editor'), pre=ce('pre'); const code=ce('code');pre.append(code);wrap.append(pre,ta);ta.classList.add('code-input');
-  const paint=()=>{code.innerHTML=highlightCode(ta.value,langForExt(extName))+'\n';pre.scrollTop=ta.scrollTop;pre.scrollLeft=ta.scrollLeft;};
+  const paint=()=>{code.innerHTML=highlightCode(ta.value,langForExt(extName))+'\n';pre.scrollTop=ta.scrollTop;pre.scrollLeft=ta.scrollLeft;if(collabFileId===cur?.id)queueMicrotask(paintCommentHighlights);};
   ta.addEventListener('input',paint);ta.addEventListener('scroll',()=>{pre.scrollTop=ta.scrollTop;pre.scrollLeft=ta.scrollLeft;});
   ta.addEventListener('keydown',e=>{
     if(e.key==='Tab'){e.preventDefault();const a=ta.selectionStart,b=ta.selectionEnd;const before=ta.value.slice(0,a),line=before.slice(before.lastIndexOf('\n')+1);const indent=(line.match(/^\s*/)||[''])[0];
@@ -1322,77 +1324,55 @@ function collaboratorColor(id){
   const colors=['#e879f9','#38bdf8','#fb923c','#4ade80','#f472b6','#facc15','#a78bfa','#2dd4bf'];
   return colors[Math.abs(Number(id)||0)%colors.length];
 }
+function codeRange(root,start,end){
+  const nodes=[],walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  let node,total=0;
+  while((node=walker.nextNode())){nodes.push({node,from:total,to:total+node.length});total+=node.length;}
+  if(!nodes.length)return null;
+  const point=offset=>{
+    const at=Math.max(0,Math.min(offset,total));
+    const found=nodes.find(n=>at<=n.to)||nodes[nodes.length-1];
+    return [found.node,Math.max(0,Math.min(found.node.length,at-found.from))];
+  };
+  const [sn,so]=point(start),[en,eo]=point(end);
+  const range=document.createRange();range.setStart(sn,so);range.setEnd(en,eo);return range;
+}
 function renderInlineAnnotations(ta){
-  const parent=ta.parentElement;if(!parent)return;
-  let overlay=parent.querySelector(':scope > .collab-inline-overlay');
-  if(!overlay){overlay=ce('pre','collab-inline-overlay');parent.append(overlay);}
-  const cs=getComputedStyle(ta);
-  const parentRect=parent.getBoundingClientRect(), rect=ta.getBoundingClientRect();
-  parent.style.position='relative';
-  // Reproduce the textarea's exact text geometry, including its internal scrolling.
-  Object.assign(overlay.style,{
-    position:'absolute',left:(rect.left-parentRect.left+parent.scrollLeft)+'px',
-    top:(rect.top-parentRect.top+parent.scrollTop)+'px',
-    width:rect.width+'px',height:rect.height+'px',
-    padding:cs.padding,border:cs.border,boxSizing:'border-box',
-    fontFamily:cs.fontFamily,fontSize:cs.fontSize,fontWeight:cs.fontWeight,
-    fontStyle:cs.fontStyle,lineHeight:cs.lineHeight,letterSpacing:cs.letterSpacing,
-    fontVariant:cs.fontVariant,fontKerning:cs.fontKerning,wordSpacing:cs.wordSpacing,
-    tabSize:cs.tabSize,textAlign:cs.textAlign,whiteSpace:cs.whiteSpace==='normal'?'pre-wrap':cs.whiteSpace,
-    overflowWrap:cs.overflowWrap,wordBreak:cs.wordBreak,
-    overflow:'hidden',pointerEvents:'none',zIndex:'5',
-    color:'transparent',background:'transparent'
-  });
-  // Code editors use unwrapped lines; pre-wrap would shift annotations on long lines.
-  const value=ta.value,ranges=[];
+  // Anchor decorations to the *actual highlighted code DOM*, not a second text
+  // renderer. The textarea is transparent and can differ in font/scroll metrics.
+  const editor=ta.closest('.code-editor');
+  const code=editor?.querySelector('pre code');
+  const pre=editor?.querySelector('pre');
+  const old=editor?.querySelectorAll('.collab-remote-caret')||[];
+  old.forEach(el=>el.remove());
+  if(window.CSS?.highlights){CSS.highlights.delete('fbi-comments');CSS.highlights.delete('fbi-selections');}
+  editor?.querySelector('.collab-inline-overlay')?.remove();
+  if(!code||!pre||!window.CSS?.highlights||typeof Highlight==='undefined')return;
+  const text=ta.value,comments=[],selections=[];
   for(const c of collabComments){
     if(!c.quote_text||Number(c.resolved))continue;
-    let pos=Number(c.selection_start);
-    if(!Number.isInteger(pos)||value.slice(pos,pos+c.quote_text.length)!==c.quote_text)pos=value.indexOf(c.quote_text);
-    if(pos>=0)ranges.push({start:pos,end:pos+c.quote_text.length,color:'#ffe16a88',kind:'comment'});
+    let start=Number(c.selection_start);
+    if(!Number.isInteger(start)||text.slice(start,start+c.quote_text.length)!==c.quote_text)start=text.indexOf(c.quote_text);
+    if(start<0)continue;
+    const range=codeRange(code,start,start+c.quote_text.length);if(range)comments.push(range);
   }
   for(const u of collabUsers){
     if(Number(u.id)===Number(me?.id)||u.cursor_start==null)continue;
-    const start=Math.max(0,Math.min(value.length,Number(u.cursor_start)));
-    const end=Math.max(0,Math.min(value.length,Number(u.cursor_end??start)));
-    if(start!==end)ranges.push({start:Math.min(start,end),end:Math.max(start,end),color:collaboratorColor(u.id)+'66',kind:'selection'});
+    const start=Math.max(0,Math.min(text.length,Number(u.cursor_start)));
+    const end=Math.max(0,Math.min(text.length,Number(u.cursor_end??start)));
+    if(start!==end){const range=codeRange(code,Math.min(start,end),Math.max(start,end));if(range)selections.push(range);}
+    const caretRange=codeRange(code,start,start);
+    if(!caretRange)continue;
+    const rect=caretRange.getBoundingClientRect(),preRect=pre.getBoundingClientRect();
+    if(!rect.width&&!rect.height)continue;
+    const caret=ce('span','collab-remote-caret');
+    const color=collaboratorColor(u.id);
+    caret.style.cssText='position:absolute;z-index:7;pointer-events:none;width:2px;background:'+color+';left:'+(rect.left-preRect.left+pre.offsetLeft+pre.scrollLeft)+'px;top:'+(rect.top-preRect.top+pre.offsetTop+pre.scrollTop)+'px;height:'+(rect.height||parseFloat(getComputedStyle(pre).lineHeight)||20)+'px';
+    caret.title=(u.name||u.username)+' est ici';
+    editor.append(caret);
   }
-  const points=new Set([0,value.length]);
-  for(const range of ranges){points.add(range.start);points.add(range.end);}
-  const sorted=[...points].sort((a,b)=>a-b);
-  overlay.replaceChildren();
-  for(let i=0;i<sorted.length-1;i++){
-    const start=sorted[i],end=sorted[i+1],segment=value.slice(start,end);
-    const active=ranges.filter(x=>x.start<end&&x.end>start);
-    if(!active.length){overlay.append(document.createTextNode(segment));continue;}
-    const mark=ce('span','',segment);
-    mark.style.background=active.find(x=>x.kind==='comment')?.color||active[0].color;
-    mark.style.color='transparent';
-    overlay.append(mark);
-  }
-  overlay.scrollTop=ta.scrollTop;overlay.scrollLeft=ta.scrollLeft;
-  if(!overlay.firstChild)overlay.append(document.createTextNode(' '));
-  // A zero-width caret must not occupy a character or shift the following text.
-  // Cursor placement is measured with the same text mirror, without injecting glyphs.
-  for(const u of collabUsers){
-    if(Number(u.id)===Number(me?.id)||u.cursor_start==null)continue;
-    const position=Math.max(0,Math.min(value.length,Number(u.cursor_start)));
-    const range=document.createRange();
-    const walker=document.createTreeWalker(overlay,NodeFilter.SHOW_TEXT);
-    let node,remaining=position,found=null;
-    while((node=walker.nextNode())){
-      if(remaining<=node.textContent.length){found={node,offset:remaining};break;}
-      remaining-=node.textContent.length;
-    }
-    if(!found){node=overlay.lastChild;if(node?.nodeType===3)found={node,offset:node.textContent.length};}
-    if(!found)continue;
-    range.setStart(found.node,found.offset);range.collapse(true);
-    const box=range.getBoundingClientRect(),root=overlay.getBoundingClientRect();
-    if(!box||!root)continue;
-    const caret=ce('span','collab-caret');
-    caret.style.cssText='position:absolute;width:2px;pointer-events:none;background:'+collaboratorColor(u.id)+';left:'+(box.left-root.left+overlay.scrollLeft)+'px;top:'+(box.top-root.top+overlay.scrollTop)+'px;height:'+(parseFloat(cs.lineHeight)||parseFloat(cs.fontSize)*1.3)+'px;';
-    overlay.append(caret);
-  }
+  if(comments.length)CSS.highlights.set('fbi-comments',new Highlight(...comments));
+  if(selections.length)CSS.highlights.set('fbi-selections',new Highlight(...selections));
 }
 function paintCommentHighlights(){
   const ta=$('#view .ed textarea');if(!ta)return;
@@ -1403,6 +1383,7 @@ function paintCommentHighlights(){
 function stopCollaboration(){
   if(collabTimer)clearInterval(collabTimer);
   collabTimer=null;collabFileId=null;collabVersion=null;collabSelection=null;collabComments=[];collabUsers=[];collabBase='';collabConflict=false;
+  if(window.CSS?.highlights){CSS.highlights.delete('fbi-comments');CSS.highlights.delete('fbi-selections');}
   $('#collab-panel')?.remove();$('#collab-comments-btn').hidden=true;$('#collab-presence-btn').hidden=true;$('#collab-popover').hidden=true;
 }
 async function startCollaboration(n){
