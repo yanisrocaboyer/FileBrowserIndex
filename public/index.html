@@ -155,6 +155,7 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 .collab-quote:hover{background:#ffc54a}
 .collab-annotations{padding:8px;border-bottom:1px solid var(--ln);max-height:140px;overflow:auto}.collab-annotations[hidden]{display:none}.collab-annotations .collab-quote{display:inline-block;margin:4px;font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
 .collab-inline-overlay{user-select:none!important;contain:paint}.collab-inline-overlay span{border-radius:2px}
+.collab-inline-overlay .collab-caret{font-weight:900;color:inherit;pointer-events:auto}
 </style>
 </head>
 <body>
@@ -1354,7 +1355,15 @@ function renderInlineAnnotations(ta){
     if(cursor){mark.style.borderLeft='2px solid '+collaboratorColor(cursor.user.id);}
     overlay.append(mark);
   }
-  if(!text.length)overlay.append(document.createTextNode(' '));
+  for(const u of collabUsers){
+    if(Number(u.id)===Number(me?.id)||u.cursor_start==null)continue;
+    const pos=Math.max(0,Math.min(text.length,Number(u.cursor_start)));
+    if(pos!==text.length)continue;
+    const cursor=ce('span','collab-caret','│');
+    cursor.style.color=collaboratorColor(u.id);cursor.title=(u.name||u.username)+' est ici';
+    overlay.append(cursor);
+  }
+  if(!text.length&&!collabUsers.length)overlay.append(document.createTextNode(' '));
   overlay.scrollTop=ta.scrollTop;overlay.scrollLeft=ta.scrollLeft;
 }
 function paintCommentHighlights(){
