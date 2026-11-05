@@ -151,6 +151,8 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 #collab-panel textarea:focus{outline:2px solid #5b96fa;outline-offset:1px}
 #collab-panel .collab-send{width:100%;padding:10px}
 .collab-avatar{overflow:hidden}.collab-avatar img{width:100%;height:100%;object-fit:cover}
+.collab-quote{display:block;padding:5px 8px;margin:6px 0;border-radius:4px;background:#ffe18a;color:#222;cursor:pointer;white-space:pre-wrap;overflow-wrap:anywhere}
+.collab-quote:hover{background:#ffc54a}
 </style>
 </head>
 <body>
@@ -249,7 +251,7 @@ let token = localStorage.getItem('t'),
     tm,
     autosaveTimer = null,
     autosaveBusy = false;
-let collabTimer=null,collabFileId=null,collabVersion=null;
+let collabTimer=null,collabFileId=null,collabVersion=null,collabSelection=null,collabComments=[];
 addEventListener('unhandledrejection', e => alert(e.reason.message || 'Erreur'));
 
 // ---- API
@@ -1208,7 +1210,7 @@ async function openNode(n) {
   } else {
     const ta = ce('textarea'); ta.value = await r.text(); ta.spellcheck = false; ta.readOnly = !n.edit;
     const ex=ext(n.name), isCode=CODE_EXTS.has(ex);
-    if (k === 'txt' && !isCode) { const ed=ce('div','ed');ed.append(ta,ce('div','autosave','Enregistrement automatique : après 2 secondes d’inactivité'));V.append(ed);ta.oninput = () => {setDirty(true);clearTimeout(autosaveTimer);autosaveTimer=null;scheduleAutosave();}; return; }
+    if (k === 'txt' && !isCode) { const ed=ce('div','ed');ed.append(ta,ce('div','autosave','Enregistrement automatique : après 0,9 seconde d’inactivité'));V.append(ed);ta.oninput = () => {setDirty(true);clearTimeout(autosaveTimer);autosaveTimer=null;scheduleAutosave();}; return; }
     $('#vm').hidden = false; setMode(localStorage.getItem('vm') === 'ed' ? 'ed' : 'pv');
     const ed = ce('div', 'ed'); if (n.edit && !isCode) ed.append(toolbar(ta, k));
     if(isCode){const wrap=setupCodeEditor(ta,ex);ed.append(wrap);}else ed.append(ta);
@@ -1265,7 +1267,7 @@ $('#editor-selection-menu').addEventListener('click',async e=>{
   if(action==='comment'){
     const p=$('#collab-panel');if(p)p.hidden=false;
     const comment=p?.querySelector('textarea');
-    if(comment){comment.value='« '+selected.slice(0,400)+' »\n';comment.focus();}
+    if(comment){collabSelection={quote_text:selected.slice(0,500),selection_start:from,selection_end:to};comment.placeholder='Commentaire sur « '+selected.slice(0,90)+' »';comment.focus();}
     return;
   }
   const markdown=kind(cur.name)==='md';
@@ -1281,7 +1283,7 @@ $('#editor-selection-menu').addEventListener('click',async e=>{
 
 function stopCollaboration(){
   if(collabTimer)clearInterval(collabTimer);
-  collabTimer=null;collabFileId=null;collabVersion=null;
+  collabTimer=null;collabFileId=null;collabVersion=null;collabSelection=null;collabComments=[];
   $('#collab-panel')?.remove();$('#collab-comments-btn').hidden=true;$('#collab-presence-btn').hidden=true;$('#collab-popover').hidden=true;
 }
 async function startCollaboration(n){
@@ -1294,15 +1296,18 @@ async function startCollaboration(n){
   const list=ce('div','collab-list');
   const input=ce('textarea');input.placeholder='Ajouter un commentaire…';input.maxLength=2000;
   const send=ce('button','pri collab-send','Commenter');send.type='button';
-  panel.append(heading,present,list,input,send);
+  const selectionLabel=ce('div','mu','Sélectionne du texte puis clic droit → Commenter pour l’annoter.');
+  panel.append(heading,present,list,selectionLabel,input,send);
   $('#view').prepend(panel);
   async function refreshComments(){
     const comments=await J('/api/nodes/'+n.id+'/comments');
     if(collabFileId!==n.id)return;
-    list.replaceChildren();
+    collabComments=comments;paintCommentHighlights();list.replaceChildren();
     for(const c of comments){
       const item=ce('div','collab-item');
-      item.append(ce('strong','',c.username),ce('small','',c.created_at),ce('div','',c.body));
+      item.append(ce('strong','',c.username),ce('small','',c.created_at));
+      if(c.quote_text){const excerpt=ce('mark','collab-quote',c.quote_text);excerpt.title='Commenté par '+c.username;excerpt.onclick=()=>{const ta=$('#view .ed textarea');if(!ta)return;const start=ta.value.indexOf(c.quote_text);if(start>=0){ta.focus();ta.setSelectionRange(start,start+c.quote_text.length);}};item.append(excerpt);}
+      item.append(ce('div','',c.body));
       if(c.resolved)item.append(ce('small','','Résolu'));
       const remove=ce('button','','Supprimer');remove.type='button';remove.onclick=async()=>{if(!confirm('Supprimer ce commentaire ?'))return;try{await J('/api/nodes/'+n.id+'/comments/'+c.id,{method:'DELETE'});await refreshComments();}catch(e){alert(e.message);}};item.append(remove);
       const resolve=ce('button','',c.resolved?'Rouvrir':'Résoudre');
@@ -1314,7 +1319,7 @@ async function startCollaboration(n){
   }
   send.onclick=async()=>{
     if(!input.value.trim())return;
-    try{await J('/api/nodes/'+n.id+'/comments',{method:'POST',json:{body:input.value}});input.value='';await refreshComments();}
+    try{await J('/api/nodes/'+n.id+'/comments',{method:'POST',json:{body:input.value,...(collabSelection||{})}});input.value='';collabSelection=null;input.placeholder='Ajouter un commentaire…';await refreshComments();}
     catch(e){alert(e.message);}
   };
   const poll=async()=>{
@@ -1345,14 +1350,14 @@ async function startCollaboration(n){
       await refreshComments();
     }catch(e){if(collabFileId===n.id)present.textContent='Collaboration indisponible : '+e.message;}
   };
-  poll();collabTimer=setInterval(poll,2000);
+  poll();collabTimer=setInterval(poll,1000);
 }
 
 async function save() {
   const ta = $('#view .ed textarea'); if (!cur || !ta || !cur.edit || autosaveBusy) return;
   const snapshot=ta.value, fileId=cur.id; autosaveBusy=true; try { await api('/api/nodes/' + fileId, { method: 'PUT', json: { content: snapshot, ...(collabVersion!==null ? {expected_revision:collabVersion}: {}) } });if(collabVersion!==null)collabVersion++; if(cur?.id===fileId){setDirty(ta.value!==snapshot);const st=$('.autosave');if(st)st.textContent='Enregistré · '+new Date().toLocaleTimeString();if(dirty)scheduleAutosave();} await load(); } finally { autosaveBusy=false; }
 }
-function scheduleAutosave(){if(autosaveTimer||!cur?.edit)return;autosaveTimer=setTimeout(async()=>{autosaveTimer=null;if(dirty){try{await save();}catch(e){const st=$('.autosave');if(st)st.textContent='Échec de la sauvegarde · '+e.message;if(dirty && !String(e.message).includes('409'))scheduleAutosave();}}},2000);}
+function scheduleAutosave(){if(autosaveTimer||!cur?.edit)return;autosaveTimer=setTimeout(async()=>{autosaveTimer=null;if(dirty){try{await save();}catch(e){const st=$('.autosave');if(st)st.textContent='Échec de la sauvegarde · '+e.message;if(dirty && !String(e.message).includes('409'))scheduleAutosave();}}},900);}
 $('#save').onclick = save;
 $('#dl').onclick = () => cur && download(cur);
 addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); } });
