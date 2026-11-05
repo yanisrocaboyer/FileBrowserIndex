@@ -225,6 +225,46 @@ dialog form{gap:14px}
 @media(max-width:850px){#app{grid-template-columns:235px minmax(0,1fr)}#bar{padding:9px 12px}.home,.settings{padding:22px 20px}.settings section{padding:19px}}
 @media(max-width:700px){#app{grid-template-columns:1fr;grid-template-rows:minmax(180px,36%) minmax(0,1fr)}aside{padding:4px}#view{margin:7px}.settings nav{width:100%;flex-wrap:wrap}.settings nav button{flex:1}}
 
+
+/* Refined settings and native site confirmation dialog */
+.settings{--settings-gap:22px}
+.settings section{max-width:100%}
+.settings section section{box-shadow:none;margin:12px 0;padding:18px}
+.settings .settings-profile-hero{display:flex;align-items:center;gap:20px;padding:26px 30px;border-radius:16px;background:linear-gradient(115deg,color-mix(in srgb,var(--ac) 13%,var(--pn)),var(--pn));border:1px solid var(--ln);margin:20px 0}
+.settings .settings-profile-hero .profile-avatar{display:grid;place-items:center;flex:none;width:82px;height:82px;border-radius:24px;background:var(--ac);color:#fff;font-size:26px;font-weight:750;overflow:hidden}
+.settings .settings-profile-hero .profile-avatar img{width:100%;height:100%;object-fit:cover}
+.settings .settings-profile-hero h2{font-size:22px;margin:0 0 3px}
+.settings .settings-profile-hero p{margin:0;color:var(--mu)}
+.settings .profile-section{display:grid;gap:4px}
+.settings .profile-section>button{justify-self:start}
+.settings .profile-section .profile-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
+.settings .profile-section .profile-actions button{margin:0}
+.settings .profile-section .profile-avatar-small{width:60px;height:60px;border-radius:18px;margin:8px 0}
+.settings .profile-section hr{border:0;border-top:1px solid var(--ln);margin:24px 0}
+.settings #settings-uform,.settings #settings-gform{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:center;padding:18px;border:1px solid var(--ln);border-radius:12px;margin-top:18px;background:var(--bg)}
+.settings #settings-gform{grid-template-columns:minmax(0,1fr) auto}
+.settings #settings-uform button,.settings #settings-gform button{justify-self:start}
+.settings #settings-ualab{display:flex;align-items:center;gap:10px;margin:0;min-height:40px}
+.settings #settings-ualab input{flex:none}
+.settings .grp{display:grid;gap:14px;padding:18px 20px}
+.settings .grp .urow{border:0;padding:0}
+.settings .grp .mem{padding:4px 0;gap:10px}
+.settings .grp .mem label{display:inline-flex;align-items:center;gap:8px;padding:9px 13px;margin:0;border:1px solid var(--ln);border-radius:9px;background:var(--bg);font-weight:500}
+.settings .grp .mem input{margin:0;min-height:0}
+.settings input[type=file]{padding:9px 12px;min-height:52px;cursor:pointer}
+.settings input[type=file]::file-selector-button{border:1px solid var(--ln);border-radius:8px;padding:8px 13px;background:var(--hv);color:var(--tx);margin-right:14px;cursor:pointer;font:inherit}
+.settings .settings-css-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.settings .settings-css-actions button{min-height:42px}
+.site-confirm{width:min(440px,calc(100vw - 32px));padding:28px;border-radius:18px}
+.site-confirm .confirm-mark{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:var(--hv);color:var(--ac);margin-bottom:17px}
+.site-confirm .confirm-mark span{font-size:26px}
+.site-confirm h3{font-size:21px;letter-spacing:-.025em;margin:0 0 10px}
+.site-confirm p{line-height:1.65;color:var(--mu);margin:0 0 25px;overflow-wrap:anywhere}
+.site-confirm .confirm-actions{display:flex;gap:10px;justify-content:flex-end}
+.site-confirm .confirm-actions button{padding:10px 17px}
+.site-confirm .confirm-actions button.danger{background:var(--dg);border-color:var(--dg);color:#fff}
+@media(max-width:650px){.settings #settings-uform,.settings #settings-gform{grid-template-columns:1fr}.settings .settings-profile-hero{padding:18px;gap:12px}.settings .settings-profile-hero .profile-avatar{width:60px;height:60px}}
+
 </style>
 </head>
 <body>
@@ -264,7 +304,7 @@ dialog form{gap:14px}
 </div>
 
 <dialog id="search-dialog" aria-label="Rechercher un fichier"><div class="search-heading"><input id="global-search-input" type="search" placeholder="Rechercher un fichier ou un dossier…" autocomplete="off" aria-label="Rechercher un fichier"></div><div id="global-results" role="listbox"></div></dialog>
-<div id="ctx" hidden></div><div id="editor-selection-menu" hidden role="menu"><button data-format="comment">Commenter la sélection</button><button data-format="bold">Gras</button><button data-format="italic">Italique</button><button data-format="underline">Souligner</button><button data-format="small">Texte plus petit</button><button data-format="large">Texte plus grand</button></div>
+<dialog id="site-confirm" class="site-confirm"><div class="confirm-mark"><span class="material-symbols-rounded">help</span></div><h3 id="site-confirm-title">Confirmation</h3><p id="site-confirm-text"></p><div class="confirm-actions"><button type="button" id="site-confirm-cancel">Annuler</button><button type="button" class="pri" id="site-confirm-ok">Confirmer</button></div></dialog><div id="ctx" hidden></div><div id="editor-selection-menu" hidden role="menu"><button data-format="comment">Commenter la sélection</button><button data-format="bold">Gras</button><button data-format="italic">Italique</button><button data-format="underline">Souligner</button><button data-format="small">Texte plus petit</button><button data-format="large">Texte plus grand</button></div>
 <input type="file" id="files" multiple hidden>
 
 <datalist id="fl"></datalist>
@@ -540,7 +580,7 @@ async function refreshSettingsUsers(){
     const row=ce('div','urow'); row.append(ce('span','nm',u.username),ce('span','mu',u.role));
     if(u.role!=='root'&&u.id!==me.id&&(me.role==='root'||u.role==='user')){
       const pw=ce('button','','Mot de passe'); pw.onclick=async()=>{const v=await ask('Nouveau mot de passe pour '+u.username,'','password');if(v)try{await J('/api/users/'+u.id,{method:'PUT',json:{password:v}});alert('Mot de passe modifié.');}catch(e){alert(e.message);}};
-      const del=ce('button','','Supprimer'); del.onclick=async()=>{if(!confirm('Supprimer le compte « '+u.username+' » ?'))return;try{await J('/api/users/'+u.id,{method:'DELETE'});await refreshSettingsUsers();}catch(e){alert(e.message);}};
+      const del=ce('button','','Supprimer'); del.onclick=async()=>{if(!await siteConfirm('Supprimer le compte « '+u.username+' » ?'))return;try{await J('/api/users/'+u.id,{method:'DELETE'});await refreshSettingsUsers();}catch(e){alert(e.message);}};
       row.append(pw,del);
       if(me.role==='root'){const role=ce('button','',u.role==='admin'?'Retirer admin':'Passer admin');role.onclick=async()=>{try{await J('/api/users/'+u.id,{method:'PUT',json:{role:u.role==='admin'?'user':'admin'}});await refreshSettingsUsers();}catch(e){alert(e.message);}};row.append(role);}
     }
@@ -555,7 +595,7 @@ async function refreshSettingsGroups(){
   gs.forEach(g=>{
     const box=ce('div','grp'),head=ce('div','urow');head.append(ce('b','nm',g.name));
     const rename=ce('button','','Renommer');rename.onclick=async()=>{const n=await ask('Nouveau nom du groupe',g.name);if(n)try{await J('/api/groups/'+g.id,{method:'PUT',json:{name:n}});await refreshSettingsGroups();}catch(e){alert(e.message);}};
-    const remove=ce('button','','Supprimer');remove.onclick=async()=>{if(!confirm('Supprimer le groupe « '+g.name+' » et ses permissions ?'))return;try{await J('/api/groups/'+g.id,{method:'DELETE'});await refreshSettingsGroups();await load();}catch(e){alert(e.message);}};
+    const remove=ce('button','','Supprimer');remove.onclick=async()=>{if(!await siteConfirm('Supprimer le groupe « '+g.name+' » et ses permissions ?'))return;try{await J('/api/groups/'+g.id,{method:'DELETE'});await refreshSettingsGroups();await load();}catch(e){alert(e.message);}};
     head.append(rename,remove);box.append(head);const list=ce('div','mem');
     if(!members.length)list.append(ce('span','mu','Aucun utilisateur standard.'));
     members.forEach(u=>{const label=ce('label'),cb=ce('input');cb.type='checkbox';cb.value=u.id;cb.checked=g.members.map(Number).includes(Number(u.id));cb.onchange=async()=>{const selected=[...list.querySelectorAll('input:checked')].map(x=>Number(x.value));try{await J('/api/groups/'+g.id,{method:'PUT',json:{members:selected}});await load();}catch(e){alert(e.message);cb.checked=!cb.checked;}};label.append(cb,' '+u.username);list.append(label);});
@@ -608,7 +648,7 @@ async function refreshGroups() {
     const rn = ce('button', '', 'Renommer');
     rn.onclick = async () => { const nm = await ask('Nouveau nom du groupe', g.name); if (nm) { await api('/api/groups/' + g.id, { method: 'PUT', json: { name: nm } }); refreshGroups(); } };
     const dl = ce('button', '', 'Supprimer');
-    dl.onclick = async () => { if (confirm(`Supprimer le groupe « ${g.name} » et ses permissions ?`)) { await api('/api/groups/' + g.id, { method: 'DELETE' }); refreshGroups(); load(); } };
+    dl.onclick = async () => { if (await siteConfirm(`Supprimer le groupe « ${g.name} » et ses permissions ?`)) { await api('/api/groups/' + g.id, { method: 'DELETE' }); refreshGroups(); load(); } };
     h.append(rn, dl); b.append(h);
     const m = ce('div', 'mem');
     if (!users.length) m.append(ce('span', 'mu', 'Aucun utilisateur standard.'));
@@ -792,6 +832,22 @@ function menu(e, n) {
 addEventListener('click', () => $('#ctx').hidden = true, true);
 
 // ---- Actions
+
+function siteConfirm(message,{danger=false}={}){
+  return new Promise(resolve=>{
+    const d=$('#site-confirm'),ok=$('#site-confirm-ok'),cancel=$('#site-confirm-cancel');
+    $('#site-confirm-title').textContent=danger?'Confirmer la suppression':'Confirmation';
+    $('#site-confirm-text').textContent=message;
+    ok.textContent=danger?'Supprimer':'Confirmer';
+    ok.classList.toggle('danger',danger);
+    const finish=value=>{d.oncancel=null;d.onclose=null;ok.onclick=null;cancel.onclick=null;if(d.open)d.close();resolve(value);};
+    ok.onclick=()=>finish(true);cancel.onclick=()=>finish(false);
+    d.oncancel=e=>{e.preventDefault();finish(false);};
+    d.onclose=()=>finish(false);
+    d.showModal();cancel.focus();
+  });
+}
+
 function ask(label, val = '', type = 'text', list = false) {
   return new Promise(res => {
     const d = $('#dlg'), i = $('#dlgIn'); $('#dlg label').textContent = label;
@@ -1306,7 +1362,7 @@ document.addEventListener('keydown',e=>{
 async function closeWorkspace(key){
   const tab=workspaceTabs.get(key);if(!tab||tab.type!=='file')return;
   if(key===activeWorkspace)captureWorkspace();
-  if(tab.dirty&&!confirm('Fermer « '+tab.name+' » et perdre les modifications non enregistrées ?'))return;
+  if(tab.dirty&&!await siteConfirm('Fermer « '+tab.name+' » et perdre les modifications non enregistrées ?'))return;
   workspaceTabs.delete(key);
   if(key===activeWorkspace)await switchWorkspace([...workspaceTabs.keys()].at(-1)||'home',true);
   else drawWorkspaceTabs();
@@ -1564,7 +1620,7 @@ async function startCollaboration(n){
       if(c.quote_text){const excerpt=ce('mark','collab-quote',c.quote_text);excerpt.title='Commenté par '+c.username;excerpt.onclick=()=>{const ta=$('#view .ed textarea');if(!ta)return;const start=ta.value.indexOf(c.quote_text);if(start>=0){ta.focus();ta.setSelectionRange(start,start+c.quote_text.length);}};item.append(excerpt);}
       item.append(ce('div','',c.body));
       if(c.resolved)item.append(ce('small','','Résolu'));
-      const remove=ce('button','','Supprimer');remove.type='button';remove.onclick=async()=>{if(!confirm('Supprimer ce commentaire ?'))return;try{await J('/api/nodes/'+n.id+'/comments/'+c.id,{method:'DELETE'});await refreshComments();}catch(e){alert(e.message);}};item.append(remove);
+      const remove=ce('button','','Supprimer');remove.type='button';remove.onclick=async()=>{if(!await siteConfirm('Supprimer ce commentaire ?'))return;try{await J('/api/nodes/'+n.id+'/comments/'+c.id,{method:'DELETE'});await refreshComments();}catch(e){alert(e.message);}};item.append(remove);
       const resolve=ce('button','',c.resolved?'Rouvrir':'Résoudre');
       resolve.type='button';
       resolve.onclick=async()=>{await J('/api/nodes/'+n.id+'/comments/'+c.id,{method:'PUT',json:{resolved:!c.resolved}});await refreshComments();};
