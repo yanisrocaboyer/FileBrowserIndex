@@ -216,7 +216,7 @@ const WITHME = { id: 'withme', type: 'folder', pseudo: true, priv: false, name: 
 let token = localStorage.getItem('t'),
     me = null,
     nodes = [],
-    open = new Set(['sh', 'pv']),
+    open = new Set(['sh', 'pv', 'withme']),
     sel = null,
     cur = null,
     dirty = false,
@@ -592,7 +592,7 @@ function row(n, d) {
   r.onclick = e => { e.stopPropagation(); sel = n; if (isF) { open.has(n.id) ? open.delete(n.id) : open.add(n.id); render(); } else openNode(n); };
   r.oncontextmenu = e => { e.preventDefault(); e.stopPropagation(); sel = n; render(); menu(e, n); };
   r.ondragstart = e => e.dataTransfer.setData('text/plain', n.id);
-  if (isF) {
+  if (isF && !n.received) {
     r.ondragover = e => { e.preventDefault(); r.classList.add('dr'); };
     r.ondragleave = () => r.classList.remove('dr');
     r.ondrop = e => {
@@ -634,7 +634,7 @@ $('#up').onclick = () => pick(tgt(sel));
 function menu(e, n) {
   const c = $('#ctx'); c.innerHTML = '';
   const t = tgt(n), items = [], isF = !n || n.type === 'folder', real = n && !n.pseudo;
-  if (isF && (!real || n.edit)) items.push(['Nouveau fichier', () => create('file', t)], ['Nouveau dossier', () => create('folder', t)], ['Importer…', () => pick(t)]);
+  if (isF && (!n || !n.received) && (!real || n.edit)) items.push(['Nouveau fichier', () => create('file', t)], ['Nouveau dossier', () => create('folder', t)], ['Importer…', () => pick(t)]);
   if (real) {
     if (n.edit) items.push(['Renommer', () => rename(n)]);
     items.push(['Dupliquer', () => dup(n)], ['Télécharger', () => download(n)], ['Disponible hors ligne', () => cacheOffline(n)], ['Retirer du hors ligne', () => removeOffline(n)], ['Compresser en zip', () => zipIt(n)]);
