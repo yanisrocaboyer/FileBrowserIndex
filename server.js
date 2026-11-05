@@ -275,6 +275,13 @@ async function addTo(c, zip, n, prefix) {
 // ---- Application
 const app = express();
 app.use(express.json({ limit: '50mb' }));
+// Compatible with PHP shared hosting: tunnel PUT/DELETE over POST for authenticated API routes.
+app.use('/api', (req, res, next) => {
+  if (req.method === 'POST' && ['PUT', 'DELETE'].includes(String(req.query._method || '').toUpperCase())) {
+    req.method = String(req.query._method).toUpperCase();
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 // Bibliothèques du navigateur servies localement (fonctionne hors ligne, y compris dans Electron)
 const pkgDir = (name) => {
