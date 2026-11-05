@@ -1258,8 +1258,83 @@ function setupCodeEditor(ta, extName) {
   paint();return wrap;
 }
 
+
+// Workspace tabs: keep local unsaved drafts when moving between files.
+const workspaceTabs=new Map();
+let activeWorkspace='home',workspaceSwitching=false;
+workspaceTabs.set('home',{key:'home',name:'Accueil',type:'home'});
+function workspaceKey(n){return 'file:'+n.id;}
+function captureWorkspace(){
+  if(!cur||cur.type!=='file')return;
+  const key=workspaceKey(cur),tab=workspaceTabs.get(key);
+  if(!tab)return;
+  const ta=$('#view .ed textarea');
+  if(ta){tab.draft=ta.value;tab.dirty=dirty;tab.cursor=ta.selectionStart;tab.base=collabBase;tab.revision=collabVersion;}
+  tab.name=cur.name;
+}
+function drawWorkspaceTabs(){
+  const root=$('#workspace-tabs');if(!root)return;
+  root.replaceChildren();
+  for(const tab of workspaceTabs.values()){
+    const button=ce('button','workspace-tab'+(tab.key===activeWorkspace?' active':''));
+    button.type='button';button.role='tab';button.setAttribute('aria-selected',String(tab.key===activeWorkspace));
+    const symbol=ce('span','material-symbols-rounded',tab.type==='home'?'home':tab.type==='settings'?'settings':'description');
+    symbol.style.fontSize='17px';
+    button.append(symbol,ce('span','tab-label',tab.name));
+    if(tab.dirty)button.append(ce('span','tab-dot','●'));
+    button.title=tab.name;
+    button.onclick=()=>switchWorkspace(tab.key);
+    if(tab.type==='file'){
+      const close=ce('span','tab-close','×');close.title='Fermer '+tab.name;
+      close.onclick=async e=>{e.stopPropagation();await closeWorkspace(tab.key);};
+      button.append(close);
+      button.onauxclick=e=>{if(e.button===1){e.preventDefault();closeWorkspace(tab.key);}};
+    }
+    root.append(button);
+  }
+}
+async function closeWorkspace(key){
+  const tab=workspaceTabs.get(key);if(!tab||tab.type!=='file')return;
+  if(key===activeWorkspace)captureWorkspace();
+  if(tab.dirty&&!confirm('Fermer « '+tab.name+' » et perdre les modifications non enregistrées ?'))return;
+  workspaceTabs.delete(key);
+  if(key===activeWorkspace)await switchWorkspace([...workspaceTabs.keys()].at(-1)||'home',true);
+  else drawWorkspaceTabs();
+}
+async function switchWorkspace(key,force=false){
+  if(workspaceSwitching)return;
+  const tab=workspaceTabs.get(key);if(!tab)return;
+  if(!force&&key===activeWorkspace)return;
+  captureWorkspace();
+  // A draft is retained in its tab rather than discarded on navigation.
+  dirty=false;workspaceSwitching=true;
+  try{
+    activeWorkspace=key;drawWorkspaceTabs();
+    if(tab.type==='home'){showHome();return;}
+    if(tab.type==='settings'){await showSettings(tab.section||'account');return;}
+    const n=nodes.find(n=>n.id===tab.id);
+    if(!n){workspaceTabs.delete(key);activeWorkspace='home';showHome();return;}
+    await openNode(n);
+  }finally{workspaceSwitching=false;drawWorkspaceTabs();}
+}
+function restoreWorkspaceDraft(n){
+  const tab=workspaceTabs.get(workspaceKey(n));
+  if(!tab||tab.draft===undefined)return;
+  const ta=$('#view .ed textarea');if(!ta)return;
+  if(tab.dirty){
+    ta.value=tab.draft;
+    ta.dispatchEvent(new Event('input',{bubbles:true}));
+    setDirty(true);
+    collabBase=tab.base??collabBase;collabVersion=tab.revision??collabVersion;
+    clearTimeout(autosaveTimer);autosaveTimer=null;scheduleAutosave();
+  }
+  const position=Math.min(tab.cursor??0,ta.value.length);
+  ta.setSelectionRange(position,position);
+}
+
 async function openNode(n) {
-  if (dirty && !confirm('Abandonner les modifications non enregistrées ?')) return;
+  if(!workspaceSwitching){captureWorkspace();const key=workspaceKey(n);if(!workspaceTabs.has(key))workspaceTabs.set(key,{key,id:n.id,name:n.name,type:'file'});activeWorkspace=key;drawWorkspaceTabs();}
+  dirty=false;
   stopCollaboration();closeFileFind();clearTimeout(autosaveTimer); autosaveTimer=null;
   const k = kind(n.name), V = $('#view');
   cur = n; sel = n; dirty = false; if (url) URL.revokeObjectURL(url); url = null; render();
@@ -1283,7 +1358,7 @@ async function openNode(n) {
   } else {
     const ta = ce('textarea'); ta.value = await r.text(); collabBase=ta.value; ta.spellcheck = false; ta.readOnly = !n.edit;
     const ex=ext(n.name), isCode=CODE_EXTS.has(ex);
-    if (k === 'txt' && !isCode) { const ed=ce('div','ed');ed.append(ta,ce('div','autosave','Enregistrement automatique : après 0,9 seconde d’inactivité'));V.append(ed);ta.oninput = () => {setDirty(true);clearTimeout(autosaveTimer);autosaveTimer=null;scheduleAutosave();}; return; }
+    if (k === 'txt' && !isCode) { const ed=ce('div','ed');ed.append(ta,ce('div','autosave','Enregistrement automatique : après 0,9 seconde d’inactivité'));V.append(ed);ta.oninput = () => {setDirty(true);clearTimeout(autosaveTimer);autosaveTimer=null;scheduleAutosave();};restoreWorkspaceDraft(n); return; }
     $('#vm').hidden = false; setMode(localStorage.getItem('vm') === 'ed' ? 'ed' : 'pv');
     const ed = ce('div', 'ed'); if (n.edit && !isCode) ed.append(toolbar(ta, k));
     if(isCode){const wrap=setupCodeEditor(ta,ex);ed.append(wrap);}else ed.append(ta);
