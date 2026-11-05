@@ -252,7 +252,7 @@ let token = localStorage.getItem('t'),
     tm,
     autosaveTimer = null,
     autosaveBusy = false;
-let collabTimer=null,collabFileId=null,collabVersion=null,collabSelection=null,collabComments=[];
+let collabTimer=null,collabFileId=null,collabVersion=null,collabSelection=null,collabComments=[],collabUsers=[],collabBase='',collabConflict=false;
 addEventListener('unhandledrejection', e => alert(e.reason.message || 'Erreur'));
 
 // ---- API
@@ -1209,7 +1209,7 @@ async function openNode(n) {
     url = URL.createObjectURL(new Blob([await r.arrayBuffer()], { type: 'application/pdf' }));
     const f = ce('iframe'); f.src = url; V.append(f);
   } else {
-    const ta = ce('textarea'); ta.value = await r.text(); ta.spellcheck = false; ta.readOnly = !n.edit;
+    const ta = ce('textarea'); ta.value = await r.text(); collabBase=ta.value; ta.spellcheck = false; ta.readOnly = !n.edit;
     const ex=ext(n.name), isCode=CODE_EXTS.has(ex);
     if (k === 'txt' && !isCode) { const ed=ce('div','ed');ed.append(ta,ce('div','autosave','Enregistrement automatique : après 0,9 seconde d’inactivité'));V.append(ed);ta.oninput = () => {setDirty(true);clearTimeout(autosaveTimer);autosaveTimer=null;scheduleAutosave();}; return; }
     $('#vm').hidden = false; setMode(localStorage.getItem('vm') === 'ed' ? 'ed' : 'pv');
@@ -1301,7 +1301,7 @@ function paintCommentHighlights(){
 }
 function stopCollaboration(){
   if(collabTimer)clearInterval(collabTimer);
-  collabTimer=null;collabFileId=null;collabVersion=null;collabSelection=null;collabComments=[];
+  collabTimer=null;collabFileId=null;collabVersion=null;collabSelection=null;collabComments=[];collabUsers=[];collabBase='';collabConflict=false;
   $('#collab-panel')?.remove();$('#collab-comments-btn').hidden=true;$('#collab-presence-btn').hidden=true;$('#collab-popover').hidden=true;
 }
 async function startCollaboration(n){
@@ -1343,9 +1343,10 @@ async function startCollaboration(n){
   const poll=async()=>{
     if(collabFileId!==n.id||!navigator.onLine)return;
     try{
-      const data=await J('/api/nodes/'+n.id+'/collaboration',{method:'POST'});
+      const editor=$('#view .ed textarea');const data=await J('/api/nodes/'+n.id+'/collaboration',{method:'POST',json:{cursor_start:editor?.selectionStart??null,cursor_end:editor?.selectionEnd??null}});
       if(collabFileId!==n.id)return;
       present.textContent='Sur ce fichier : '+(data.users.map(u=>u.name).join(', ')||'personne');
+      collabUsers=data.users;paintCommentHighlights();
       $('#collab-presence-count').textContent=String(data.users.length);
       const people=$('#collab-popover');people.replaceChildren(ce('strong','','Personnes présentes'));
       for(const u of data.users){const line=ce('div','urow');const initials=(u.name||u.username||'?').split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();const avatar=ce('span','collab-avatar',u.avatar?'':initials);if(u.avatar){const img=ce('img');img.src=u.avatar;img.alt='';img.width=30;img.height=30;avatar.append(img);}line.append(avatar,ce('span','',u.name||u.username));people.append(line);}
@@ -1355,14 +1356,15 @@ async function startCollaboration(n){
           if(ta && cur?.id===n.id){
             const response=await api('/api/nodes/'+n.id+'/content');
             if(collabFileId!==n.id || dirty)return;
-            ta.value=await response.text();
+            ta.value=await response.text();collabBase=ta.value;
             ta.dispatchEvent(new Event('input',{bubbles:false}));
             setDirty(false);paintCommentHighlights();
             const frame=$('#view iframe');if(frame?._refresh)frame._refresh();
           }
           collabVersion=data.revision;
-        } else {
-          const status=$('.autosave');if(status)status.textContent='Modification distante détectée — sauvegarde protégée contre les conflits';
+        } else if(!autosaveBusy && !collabConflict) {
+          const merged=await mergeRemoteChanges(n.id,data.revision);
+          if(!merged){const status=$('.autosave');if(status)status.textContent='Conflit de modification : votre texte est conservé. Résolvez le conflit avant de sauvegarder.';}
         }
       } else if(collabVersion===null) collabVersion=data.revision;
       await refreshComments();
