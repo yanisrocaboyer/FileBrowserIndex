@@ -40,6 +40,8 @@ function init():void{
  "CREATE TABLE IF NOT EXISTS group_members(group_id INT NOT NULL,user_id INT NOT NULL,PRIMARY KEY(group_id,user_id),FOREIGN KEY(group_id) REFERENCES user_groups(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB",
  "CREATE TABLE IF NOT EXISTS perms(id INT AUTO_INCREMENT PRIMARY KEY,node_id INT NOT NULL,subject_type ENUM('user','group','all') NOT NULL,subject_id INT NOT NULL DEFAULT 0,can_view TINYINT(1) NOT NULL DEFAULT 1,can_edit TINYINT(1) NOT NULL DEFAULT 0,UNIQUE(node_id,subject_type,subject_id),FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE) ENGINE=InnoDB",
  "CREATE TABLE IF NOT EXISTS private_shares(node_id INT NOT NULL,user_id INT NOT NULL,can_edit TINYINT(1) NOT NULL DEFAULT 0,PRIMARY KEY(node_id,user_id),FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB",
+ "CREATE TABLE IF NOT EXISTS collaboration_presence(node_id INT NOT NULL,user_id INT NOT NULL,seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(node_id,user_id),FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB",
+ "CREATE TABLE IF NOT EXISTS file_comments(id INT AUTO_INCREMENT PRIMARY KEY,node_id INT NOT NULL,user_id INT NOT NULL,body TEXT NOT NULL,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,resolved TINYINT(1) NOT NULL DEFAULT 0,FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,INDEX(node_id)) ENGINE=InnoDB",
  "CREATE TABLE IF NOT EXISTS share_links(id INT AUTO_INCREMENT PRIMARY KEY,node_id INT NOT NULL UNIQUE,token CHAR(64) NOT NULL UNIQUE,enabled TINYINT(1) NOT NULL DEFAULT 1,editor_only TINYINT(1) NOT NULL DEFAULT 0,created_by INT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL) ENGINE=InnoDB"
  ];foreach($sql as $s)pdo()->exec($s);
  foreach(['users'=>['role'=>"ALTER TABLE users ADD COLUMN role ENUM('root','admin','user') NOT NULL DEFAULT 'user'",'display_name'=>'ALTER TABLE users ADD COLUMN display_name VARCHAR(80) NULL'],'nodes'=>['private_owner'=>'ALTER TABLE nodes ADD COLUMN private_owner INT NULL']] as $t=>$cols)foreach($cols as $col=>$alter){$r=one('SELECT COUNT(*) n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?',[$t,$col]);if(!(int)$r['n'])pdo()->exec($alter);}
@@ -85,6 +87,31 @@ if(str_starts_with($uri,'/api/')){
  if(preg_match('~^/api/nodes/(\d+)/perms$~',$uri,$m)){admin($u);$id=(int)$m[1];$c=ctx($u);$n=$c['by'][$id]??null;if(!$n||$n['private_owner']!==null||$n['type']!=='folder')err(404,'Dossier introuvable.');if($method==='GET'){$rules=rows('SELECT subject_type type,subject_id id,can_view view,can_edit edit FROM perms WHERE node_id=?',[$id]);foreach($rules as &$r){$r['id']=(int)$r['id'];$r['view']=(bool)$r['view'];$r['edit']=(bool)$r['edit'];}unset($r);$from=null;if(!$rules)for($p=$n['parent_id'];$p;$p=$c['by'][$p]['parent_id']??null)if(isset($c['acl'][$p])){$from=['id'=>$p,'name'=>$c['by'][$p]['name']];break;}out(['rules'=>$rules,'from'=>$from]);}if($method==='PUT'){$rules=$b['rules']??[];if(!is_array($rules))err(400,'Règles invalides.');q('DELETE FROM perms WHERE node_id=?',[$id]);foreach($rules as $r){$t=$r['type']??'';$sid=(int)($r['id']??0);if(!in_array($t,['user','group','all'],true))err(400,'Type invalide.');if($t==='all'&&$sid!==0)err(400,'Identifiant de règle invalide.');if($t==='user'&&!one('SELECT id FROM users WHERE id=?',[$sid]))err(400,'Utilisateur introuvable.');if($t==='group'&&!one('SELECT id FROM user_groups WHERE id=?',[$sid]))err(400,'Groupe introuvable.');q('INSERT INTO perms(node_id,subject_type,subject_id,can_view,can_edit) VALUES(?,?,?,?,?)',[$id,$t,$sid,!empty($r['view'])?1:0,!empty($r['edit'])?1:0]);}out(['ok'=>true]);}}
  if(preg_match('~^/api/nodes/(\d+)/share$~',$uri,$m)){$id=(int)$m[1];$c=ctx($u);$n=$c['by'][$id]??null;if(!$n||$n['type']!=='file'||!can($c,$id,'e'))err(404,'Fichier introuvable ou non modifiable.');if($method==='GET'){$r=one('SELECT id,token,enabled,editor_only,created_at FROM share_links WHERE node_id=?',[$id]);if($r){$r['id']=(int)$r['id'];$r['enabled']=(bool)$r['enabled'];$r['editor_only']=(bool)$r['editor_only'];}out($r);}if($method==='PUT'){$en=(isset($b['enabled'])&&($b['enabled']===false||$b['enabled']===0))?0:1;$ed=!empty($b['editor_only'])?1:0;$old=one('SELECT id,token FROM share_links WHERE node_id=?',[$id]);if($old){q('UPDATE share_links SET enabled=?,editor_only=? WHERE id=?',[$en,$ed,$old['id']]);out(['id'=>(int)$old['id'],'token'=>$old['token'],'enabled'=>(bool)$en,'editor_only'=>(bool)$ed]);}$token=bin2hex(random_bytes(32));q('INSERT INTO share_links(node_id,token,enabled,editor_only,created_by) VALUES(?,?,?,?,?)',[$id,$token,$en,$ed,$u['id']]);out(['id'=>(int)pdo()->lastInsertId(),'token'=>$token,'enabled'=>(bool)$en,'editor_only'=>(bool)$ed]);}if($method==='DELETE'){q('DELETE FROM share_links WHERE node_id=?',[$id]);out(['ok'=>true]);}}
 
+ if(preg_match('~^/api/nodes/(\\d+)/collaboration$~',$uri,$m)){
+  $id=(int)$m[1];$c=ctx($u);$n=$c['by'][$id]??null;
+  if(!$n||$n['type']!=='file'||!can($c,$id,'v'))err(404,'Fichier inaccessible.');
+  if($method==='POST')q('INSERT INTO collaboration_presence(node_id,user_id,seen_at) VALUES(?,?,NOW()) ON DUPLICATE KEY UPDATE seen_at=NOW()',[$id,$u['id']]);
+  if($method==='GET'||$method==='POST'){
+   $present=rows('SELECT u.id,u.username,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[$id]);
+   $version=one('SELECT updated_at FROM nodes WHERE id=?',[$id]);
+   out(['users'=>$present,'updated_at'=>$version['updated_at']]);
+  }
+ }
+ if(preg_match('~^/api/nodes/(\\d+)/comments(?:/(\\d+))?$~',$uri,$m)){
+  $id=(int)$m[1];$commentId=(int)($m[2]??0);$c=ctx($u);$n=$c['by'][$id]??null;
+  if(!$n||$n['type']!=='file'||!can($c,$id,'v'))err(404,'Fichier inaccessible.');
+  if($method==='GET'&&!$commentId)out(rows('SELECT c.id,c.user_id,c.body,c.created_at,c.resolved,u.username FROM file_comments c JOIN users u ON u.id=c.user_id WHERE c.node_id=? ORDER BY c.id',[$id]));
+  if($method==='POST'&&!$commentId){
+   $body=trim((string)($b['body']??''));if($body===''||len($body)>2000)err(400,'Commentaire invalide (1 à 2000 caractères).');
+   q('INSERT INTO file_comments(node_id,user_id,body) VALUES(?,?,?)',[$id,$u['id'],$body]);out(['ok'=>true]);
+  }
+  if($method==='PUT'&&$commentId){
+   $comment=one('SELECT user_id FROM file_comments WHERE id=? AND node_id=?',[$commentId,$id]);
+   if(!$comment)err(404,'Commentaire introuvable.');
+   if((int)$comment['user_id']!==(int)$u['id']&&!can($c,$id,'e'))err(403,'Action non autorisée.');
+   q('UPDATE file_comments SET resolved=? WHERE id=?',[!empty($b['resolved'])?1:0,$commentId]);out(['ok'=>true]);
+  }
+ }
  if($uri==='/api/share-users'&&$method==='GET')out(rows('SELECT id,username,display_name FROM users WHERE id<>? ORDER BY username',[$u['id']]));
  if(preg_match('~^/api/nodes/(\\d+)/private-shares$~',$uri,$m)){
   $id=(int)$m[1];$n=one('SELECT id,private_owner FROM nodes WHERE id=?',[$id]);
