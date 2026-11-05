@@ -153,6 +153,7 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 .collab-avatar{overflow:hidden}.collab-avatar img{width:100%;height:100%;object-fit:cover}
 .collab-quote{display:block;padding:5px 8px;margin:6px 0;border-radius:4px;background:#ffe18a;color:#222;cursor:pointer;white-space:pre-wrap;overflow-wrap:anywhere}
 .collab-quote:hover{background:#ffc54a}
+.collab-annotations{padding:8px;border-bottom:1px solid var(--ln);max-height:140px;overflow:auto}.collab-annotations[hidden]{display:none}.collab-annotations .collab-quote{display:inline-block;margin:4px;font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -1281,6 +1282,22 @@ $('#editor-selection-menu').addEventListener('click',async e=>{
   ta.dispatchEvent(new Event('input',{bubbles:true}));ta.focus();
 });
 
+function paintCommentHighlights(){
+  const ed=$('#view .ed');if(!ed)return;
+  let strip=ed.querySelector('.collab-annotations');
+  if(!strip){strip=ce('div','collab-annotations');ed.prepend(strip);}
+  strip.replaceChildren();
+  const ta=ed.querySelector('textarea');if(!ta)return;
+  const active=collabComments.filter(c=>c.quote_text&&!Number(c.resolved)&&ta.value.includes(c.quote_text));
+  if(!active.length){strip.hidden=true;return;}
+  strip.hidden=false;strip.append(ce('strong','','Passages commentés : '));
+  for(const c of active){
+    const mark=ce('mark','collab-quote',c.quote_text.slice(0,100));
+    mark.title='Commenté par '+c.username;
+    mark.onclick=()=>{const pos=ta.value.indexOf(c.quote_text);if(pos>=0){ta.focus();ta.setSelectionRange(pos,pos+c.quote_text.length);}};
+    strip.append(mark);
+  }
+}
 function stopCollaboration(){
   if(collabTimer)clearInterval(collabTimer);
   collabTimer=null;collabFileId=null;collabVersion=null;collabSelection=null;collabComments=[];
