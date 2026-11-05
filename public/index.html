@@ -1284,6 +1284,8 @@ $('#editor-selection-menu').addEventListener('click',async e=>{
 });
 
 $('#view').addEventListener('input',e=>{if(e.target.matches('.ed textarea'))paintCommentHighlights();});
+$('#view').addEventListener('scroll',e=>{if(e.target.matches('.ed textarea')){const overlay=e.target.parentElement.querySelector(':scope > .collab-inline-overlay');if(overlay){overlay.scrollTop=e.target.scrollTop;overlay.scrollLeft=e.target.scrollLeft;}}},true);
+addEventListener('resize',()=>{if(collabFileId!==null)paintCommentHighlights();});
 // Fusion prudente des changements non chevauchants (une zone modifiée par session).
 function changedSpan(base,next){
   let a=0;while(a<base.length&&a<next.length&&base[a]===next[a])a++;
@@ -1346,7 +1348,8 @@ function renderInlineAnnotations(ta){
     const marks=ranges.filter(x=>x.start<end&&x.end>start);
     if(!marks.length){overlay.append(document.createTextNode(segment));continue;}
     const mark=ce('span','',segment);mark.style.background=marks.find(x=>x.kind==='comment')?.color||marks[0].color;
-    mark.style.color='transparent';mark.title=marks.map(x=>x.title).join(' · ');
+    mark.style.color='transparent';mark.title=marks.map(x=>x.title).join(' · ');mark.style.pointerEvents='auto';
+    mark.onclick=()=>{ta.focus();ta.setSelectionRange(start,end);};
     const cursor=marks.find(x=>x.kind==='cursor'&&x.start===start);
     if(cursor){mark.style.borderLeft='2px solid '+collaboratorColor(cursor.user.id);}
     overlay.append(mark);
