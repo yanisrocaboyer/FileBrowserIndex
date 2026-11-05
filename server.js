@@ -91,6 +91,12 @@ async function initDb() {
     UNIQUE (node_id, subject_type, subject_id),
     FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS private_shares (
+    node_id INT NOT NULL, user_id INT NOT NULL, can_edit TINYINT(1) NOT NULL DEFAULT 0,
+    PRIMARY KEY(node_id,user_id),
+    FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`);
   await pool.query(`CREATE TABLE IF NOT EXISTS share_links (
     id INT AUTO_INCREMENT PRIMARY KEY,
     node_id INT NOT NULL UNIQUE,
@@ -169,6 +175,8 @@ async function ctx(user) {
   const [ns] = await pool.query('SELECT id,parent_id,name,type,private_owner FROM nodes');
   const [ps] = await pool.query('SELECT node_id,subject_type,subject_id,can_view,can_edit FROM perms');
   const [gm] = await pool.query('SELECT group_id FROM group_members WHERE user_id=?', [user.id]);
+  const [privateShares] = await pool.query('SELECT node_id,can_edit FROM private_shares WHERE user_id=?',[user.id]);
+  const shares = new Map(privateShares.map(p=>[p.node_id,!!p.can_edit]));
   const groups = new Set(gm.map((g) => g.group_id)), admin = user.role !== 'user';
   const byId = new Map(), kids = new Map(), acl = new Map(), acc = new Map();
   for (const n of ns) { byId.set(n.id, n); const k = n.parent_id || 0; (kids.get(k) || kids.set(k, []).get(k)).push(n.id); }
@@ -179,7 +187,7 @@ async function ctx(user) {
     if (acc.has(id)) return acc.get(id);
     const n = byId.get(id), par = n.parent_id ? calc(n.parent_id) : { v: true, av: true, ae: true };
     let r;
-    if (n.private_owner != null) { const ok = n.private_owner === user.id; r = { v: ok, e: ok }; }
+    if (n.private_owner != null) { const ok = n.private_owner === user.id; let grant; for(let x=id;x;x=byId.get(x)?.parent_id){if(shares.has(x)){grant=shares.get(x);break;}}r = { v: ok || grant !== undefined, e: ok || grant === true }; }
     else {
       const rules = acl.get(id);
       const av = rules ? rules.some((p) => hit(p) && p.can_view) : par.av;
@@ -637,13 +645,40 @@ app.get('/s/:token', w(async (q, s) => {
    ${ext==='md'||ext==='markdown'||mime==='text/markdown'?'<script src="/vendor/marked.js"><\/script>':''}<script nonce="${nonce}">${mdScript}${script}</script></html>`);
 }));
 
+// Partages privés entre comptes : le propriétaire seul gère les accès.
+app.get('/api/share-users', auth, w(async(q,s)=>{
+  const [users]=await pool.query('SELECT id,username,display_name FROM users WHERE id<>? ORDER BY username',[q.user.id]);
+  s.json(users);
+}));
+app.get('/api/nodes/:id/private-shares', auth, w(async(q,s)=>{
+  const [[n]]=await pool.query('SELECT private_owner FROM nodes WHERE id=?',[+q.params.id]);
+  if(!n||n.private_owner!==q.user.id)return fail(s,403,'Seul le propriétaire peut partager cet élément.');
+  const [rows]=await pool.query('SELECT ps.user_id,us.username,ps.can_edit FROM private_shares ps JOIN users us ON us.id=ps.user_id WHERE ps.node_id=? ORDER BY us.username',[+q.params.id]);
+  s.json(rows);
+}));
+app.put('/api/nodes/:id/private-shares', auth, w(async(q,s)=>{
+  const [[n]]=await pool.query('SELECT private_owner FROM nodes WHERE id=?',[+q.params.id]);
+  if(!n||n.private_owner!==q.user.id)return fail(s,403,'Seul le propriétaire peut partager cet élément.');
+  const uid=+q.body.user_id;
+  const [[target]]=await pool.query('SELECT id FROM users WHERE id=?',[uid]);
+  if(!target||uid===q.user.id)return fail(s,400,'Utilisateur invalide.');
+  await pool.query('INSERT INTO private_shares(node_id,user_id,can_edit) VALUES(?,?,?) ON DUPLICATE KEY UPDATE can_edit=VALUES(can_edit)',[+q.params.id,uid,q.body.can_edit?1:0]);
+  s.json({ok:true});
+}));
+app.delete('/api/nodes/:id/private-shares', auth, w(async(q,s)=>{
+  const [[n]]=await pool.query('SELECT private_owner FROM nodes WHERE id=?',[+q.params.id]);
+  if(!n||n.private_owner!==q.user.id)return fail(s,403,'Seul le propriétaire peut partager cet élément.');
+  await pool.query('DELETE FROM private_shares WHERE node_id=? AND user_id=?',[+q.params.id,+q.body.user_id]);
+  s.json({ok:true});
+}));
+
 // ---- Arborescence : uniquement ce que l'utilisateur a le droit de voir
 app.get('/api/nodes', auth, w(async (q, s) => {
   const c = await ctx(q.user), admin = q.user.role !== 'user';
   const [r] = await pool.query('SELECT id,parent_id,name,type,mime,size,updated_at,private_owner FROM nodes');
   s.json(r.filter((n) => can(c, n.id, 'v')).map((n) => ({
     id: n.id, parent_id: n.parent_id, name: n.name, type: n.type, mime: n.mime, size: n.size, updated_at: n.updated_at,
-    priv: n.private_owner != null, edit: can(c, n.id, 'e'),
+    priv: n.private_owner != null, shared_with_me: n.private_owner != null && n.private_owner !== q.user.id, edit: can(c, n.id, 'e'),
     lock: admin && n.private_owner == null && c.acl.has(n.id), // dossier avec règles propres
   })));
 }));
