@@ -60,6 +60,7 @@ async function initDb() {
   ) ENGINE=InnoDB`);
   if (!(await hasCol('users', 'role')))
     await pool.query(`ALTER TABLE users ADD COLUMN role ENUM('root','admin','user') NOT NULL DEFAULT 'user'`);
+  if (!(await hasCol('users', 'avatar'))) await pool.query('ALTER TABLE users ADD COLUMN avatar MEDIUMTEXT NULL');
   if (!(await hasCol('users', 'display_name')))
     await pool.query('ALTER TABLE users ADD COLUMN display_name VARCHAR(80) NULL');
   if (!(await hasCol('nodes', 'private_owner')))
@@ -159,7 +160,7 @@ const auth = async (q, s, n) => {
   let u;
   try {
     const { id } = jwt.verify((q.headers.authorization || '').slice(7), SECRET);
-    [[u]] = await pool.query('SELECT id,username,role,display_name FROM users WHERE id=?', [id]);
+    [[u]] = await pool.query('SELECT id,username,role,display_name,avatar FROM users WHERE id=?', [id]);
     if (!u) throw 0;
   } catch { return s.status(401).json({ error: 'Non authentifié' }); }
   q.user = u; n();
@@ -672,14 +673,14 @@ async function collabAccess(q,s){
 }
 app.get('/api/nodes/:id/collaboration',auth,w(async(q,s)=>{
   if(!await collabAccess(q,s))return;
-  const [users]=await pool.query('SELECT u.id,u.username,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[+q.params.id]);
+  const [users]=await pool.query('SELECT u.id,u.username,u.avatar,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[+q.params.id]);
   const [[version]]=await pool.query('SELECT updated_at FROM nodes WHERE id=?',[+q.params.id]);
   s.json({users,updated_at:version.updated_at});
 }));
 app.post('/api/nodes/:id/collaboration',auth,w(async(q,s)=>{
   if(!await collabAccess(q,s))return;
   await pool.query('INSERT INTO collaboration_presence(node_id,user_id,seen_at) VALUES(?,?,NOW()) ON DUPLICATE KEY UPDATE seen_at=NOW()', [+q.params.id,q.user.id]);
-  const [users]=await pool.query('SELECT u.id,u.username,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[+q.params.id]);
+  const [users]=await pool.query('SELECT u.id,u.username,u.avatar,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[+q.params.id]);
   const [[version]]=await pool.query('SELECT updated_at FROM nodes WHERE id=?',[+q.params.id]);
   s.json({users,updated_at:version.updated_at});
 }));
