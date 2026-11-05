@@ -141,6 +141,10 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 #collab-presence-btn,#collab-comments-btn{display:inline-flex;align-items:center;gap:5px}
 .collab-avatar{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--hv);border:1px solid var(--ln);font-weight:700;margin-right:8px}
 #view{position:relative}
+
+#editor-selection-menu{position:fixed;z-index:1000;background:var(--bg);color:var(--fg);border:1px solid var(--ln);border-radius:9px;box-shadow:0 10px 25px #0004;padding:6px;display:grid;min-width:180px}
+#editor-selection-menu[hidden]{display:none}
+#editor-selection-menu button{text-align:left;padding:7px 10px}
 </style>
 </head>
 <body>
@@ -179,7 +183,7 @@ dialog form{display:grid;gap:.75rem}dialog .row2{display:flex;gap:.5rem;justify-
 </div>
 
 <dialog id="search-dialog" aria-label="Rechercher un fichier"><div class="search-heading"><input id="global-search-input" type="search" placeholder="Rechercher un fichier ou un dossier…" autocomplete="off" aria-label="Rechercher un fichier"></div><div id="global-results" role="listbox"></div></dialog>
-<div id="ctx" hidden></div>
+<div id="ctx" hidden></div><div id="editor-selection-menu" hidden role="menu"><button data-format="comment">Commenter la sélection</button><button data-format="bold">Gras</button><button data-format="italic">Italique</button><button data-format="underline">Souligner</button><button data-format="small">Texte plus petit</button><button data-format="large">Texte plus grand</button></div>
 <input type="file" id="files" multiple hidden>
 
 <datalist id="fl"></datalist>
@@ -1211,6 +1215,43 @@ async function openNode(n) {
 
 $('#collab-comments-btn').onclick=()=>{const p=$('#collab-panel');if(p)p.hidden=!p.hidden;$('#collab-popover').hidden=true;};
 $('#collab-presence-btn').onclick=()=>{const p=$('#collab-popover');p.hidden=!p.hidden;const c=$('#collab-panel');if(c)c.hidden=true;};
+
+let selectionEditor=null,selectionStart=0,selectionEnd=0;
+function hideSelectionMenu(){$('#editor-selection-menu').hidden=true;}
+document.addEventListener('click',e=>{if(!e.target.closest('#editor-selection-menu'))hideSelectionMenu();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')hideSelectionMenu();});
+$('#view').addEventListener('contextmenu',e=>{
+  const ta=e.target.closest('textarea');
+  if(!ta||!cur||!cur.edit||ta.selectionStart===ta.selectionEnd)return;
+  e.preventDefault();
+  selectionEditor=ta;selectionStart=ta.selectionStart;selectionEnd=ta.selectionEnd;
+  const menu=$('#editor-selection-menu');menu.hidden=false;
+  menu.style.left=Math.min(e.clientX,innerWidth-210)+'px';
+  menu.style.top=Math.min(e.clientY,innerHeight-270)+'px';
+});
+$('#editor-selection-menu').addEventListener('click',async e=>{
+  const action=e.target.closest('button')?.dataset.format;
+  const ta=selectionEditor,from=selectionStart,to=selectionEnd;
+  hideSelectionMenu();
+  if(!action||!ta||!cur||!ta.isConnected)return;
+  const selected=ta.value.slice(from,to);
+  if(action==='comment'){
+    const p=$('#collab-panel');if(p)p.hidden=false;
+    const comment=p?.querySelector('textarea');
+    if(comment){comment.value='« '+selected.slice(0,400)+' »\n';comment.focus();}
+    return;
+  }
+  const markdown=kind(cur.name)==='md';
+  let prefix='',suffix='';
+  if(action==='bold'){prefix=markdown?'**':'<strong>';suffix=markdown?'**':'</strong>';}
+  if(action==='italic'){prefix=markdown?'*':'<em>';suffix=markdown?'*':'</em>';}
+  if(action==='underline'){prefix='<u>';suffix='</u>';}
+  if(action==='small'){prefix='<small>';suffix='</small>';}
+  if(action==='large'){prefix='<big>';suffix='</big>';}
+  ta.setRangeText(prefix+selected+suffix,from,to,'select');
+  ta.dispatchEvent(new Event('input',{bubbles:true}));ta.focus();
+});
+
 function stopCollaboration(){
   if(collabTimer)clearInterval(collabTimer);
   collabTimer=null;collabFileId=null;collabVersion=null;
