@@ -222,6 +222,7 @@ dialog form{gap:14px}
 .workspace-tab .tab-close{display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;border-radius:6px;font-size:17px;font-weight:400}
 .workspace-tab .tab-close:hover{background:var(--ln)}
 .workspace-tab .tab-dot{color:var(--ac);font-size:17px}
+.workspace-tab.dragging{opacity:.45}.workspace-tab.drop-before{box-shadow:inset 3px 0 var(--ac)}.workspace-tab.drop-after{box-shadow:inset -3px 0 var(--ac)}
 @media(max-width:850px){#app{grid-template-columns:235px minmax(0,1fr)}#bar{padding:9px 12px}.home,.settings{padding:22px 20px}.settings section{padding:19px}}
 @media(max-width:700px){#app{grid-template-columns:1fr;grid-template-rows:minmax(180px,36%) minmax(0,1fr)}aside{padding:4px}#view{margin:7px}.settings nav{width:100%;flex-wrap:wrap}.settings nav button{flex:1}}
 
@@ -505,12 +506,15 @@ async function showSettings(tab='account') {
   const root=ce('div','settings'); root.append(ce('h1','','Paramètres'),ce('p','mu','Compte, utilisateurs, groupes et apparence du site.'));
   const nav=ce('nav'); [['account','Compte'],['access','Utilisateurs & groupes'],['theme','Theme']].forEach(([id,label])=>{const b=ce('button',id===tab?'pri':'',label);b.onclick=()=>showSettings(id);nav.append(b)});root.append(nav);
   if(tab==='account'){
-    const sec=ce('section');sec.append(ce('h3','','Gestion du compte'));
+    const hero=ce('div','settings-profile-hero'),heroAvatar=ce('span','profile-avatar',me.avatar?'':(me.display_name||me.username).slice(0,2).toUpperCase());
+    if(me.avatar){const img=ce('img');img.src=me.avatar;img.alt='Photo de profil';heroAvatar.append(img);}
+    const heroInfo=ce('div');heroInfo.append(ce('h2','',me.display_name||me.username),ce('p','', '@'+me.username+' · '+(me.role==='root'?'Propriétaire':me.role==='admin'?'Administrateur':'Membre')));hero.append(heroAvatar,heroInfo);root.append(hero);
+    const sec=ce('section','profile-section');sec.append(ce('h3','','Informations personnelles'));
     const name=ce('input'), username=ce('input'), current=ce('input'); name.value=me.display_name||me.username;username.value=me.username;current.type='password';
     [['Nom affiché',name],['Username',username],['Mot de passe actuel (confirmation)',current]].forEach(([l,i])=>{sec.append(ce('label','',l),i)});
     const saveB=ce('button','pri','Enregistrer le profil');saveB.onclick=async()=>{await J('/api/me/profile',{method:'PUT',json:{name:name.value,username:username.value,password:current.value}});current.value='';me=await J('/api/me');$('#me').textContent=(me.display_name||me.username)+' · @'+me.username+(me.role==='user'?'':' ('+me.role+')');alert('Profil mis à jour.');};sec.append(saveB);
-    sec.append(ce('hr'));
-    sec.append(ce('h3','','Photo de profil'));
+    root.append(sec);
+    const photoSection=ce('section','profile-section');photoSection.append(ce('h3','','Photo de profil'),ce('p','mu','Personnalisez votre profil avec une image carrée.'));
     const avatarPreview=ce('span','collab-avatar',me.avatar?'':(me.display_name||me.username).slice(0,2).toUpperCase());
     if(me.avatar){const pic=ce('img');pic.src=me.avatar;pic.alt='';avatarPreview.append(pic);}
     const avatarInput=ce('input');avatarInput.type='file';avatarInput.accept='image/png,image/jpeg,image/webp';
@@ -524,15 +528,17 @@ async function showSettings(tab='account') {
       ctx.drawImage(image,(image.width-side)/2,(image.height-side)/2,side,side,0,0,128,128);image.close();
       const avatar=canvas.toDataURL('image/jpeg',0.75);
       await J('/api/me/avatar',{method:'PUT',json:{avatar}});
-      me=await J('/api/me');avatarPreview.replaceChildren();
-      const pic=ce('img');pic.src=me.avatar;pic.alt='';avatarPreview.append(pic);alert('Photo enregistrée.');
+      me=await J('/api/me');avatarPreview.replaceChildren();heroAvatar.replaceChildren();
+      const pic=ce('img');pic.src=me.avatar;pic.alt='';avatarPreview.append(pic);const heroPic=ce('img');heroPic.src=me.avatar;heroPic.alt='';heroAvatar.append(heroPic);alert('Photo enregistrée.');
     };
     const avatarRemove=ce('button','','Retirer la photo');
-    avatarRemove.onclick=async()=>{await J('/api/me/avatar',{method:'PUT',json:{avatar:null}});me=await J('/api/me');avatarPreview.replaceChildren();avatarPreview.textContent=(me.display_name||me.username).slice(0,2).toUpperCase();};
-    sec.append(avatarPreview,avatarInput,avatarSave,avatarRemove);
-    sec.append(ce('hr'));
-    const old=ce('input'),nw=ce('input');old.type=nw.type='password';sec.append(ce('h3','','Changer le mot de passe'),ce('label','','Mot de passe actuel'),old,ce('label','','Nouveau mot de passe (6 caractères minimum)'),nw);
-    const pw=ce('button','pri','Modifier le mot de passe');pw.onclick=async()=>{await J('/api/me/password',{method:'PUT',json:{old:old.value,password:nw.value}});old.value=nw.value='';alert('Mot de passe modifié.');};sec.append(pw);root.append(sec);
+    avatarRemove.onclick=async()=>{await J('/api/me/avatar',{method:'PUT',json:{avatar:null}});me=await J('/api/me');avatarPreview.replaceChildren();avatarPreview.textContent=(me.display_name||me.username).slice(0,2).toUpperCase();heroAvatar.replaceChildren();heroAvatar.textContent=(me.display_name||me.username).slice(0,2).toUpperCase();};
+    avatarPreview.classList.add('profile-avatar-small');
+    const photoActions=ce('div','profile-actions');photoActions.append(avatarSave,avatarRemove);
+    photoSection.append(avatarPreview,avatarInput,photoActions);root.append(photoSection);
+    const passwordSection=ce('section','profile-section');
+    const old=ce('input'),nw=ce('input');old.type=nw.type='password';passwordSection.append(ce('h3','','Sécurité du compte'),ce('p','mu','Modifiez votre mot de passe pour protéger votre espace.'),ce('label','','Mot de passe actuel'),old,ce('label','','Nouveau mot de passe (6 caractères minimum)'),nw);
+    const pw=ce('button','pri','Modifier le mot de passe');pw.onclick=async()=>{await J('/api/me/password',{method:'PUT',json:{old:old.value,password:nw.value}});old.value=nw.value='';alert('Mot de passe modifié.');};passwordSection.append(pw);root.append(passwordSection);
   } else if(tab==='access'){
     const sec=ce('section');sec.append(ce('h3','','Gestion des accès'));sec.append(ce('p','mu',me.role==='user'?'La gestion des utilisateurs et groupes est réservée aux administrateurs.':'Utilisez les outils ci-dessous pour gérer les comptes et les groupes.'));
     if(me.role!=='user'){
@@ -1335,6 +1341,11 @@ function drawWorkspaceTabs(){
   root.replaceChildren();
   for(const tab of workspaceTabs.values()){
     const button=ce('button','workspace-tab'+(tab.key===activeWorkspace?' active':''));
+    button.draggable=true;button.dataset.workspaceKey=tab.key;
+    button.ondragstart=e=>{e.dataTransfer.setData('application/x-fbi-workspace-tab',tab.key);e.dataTransfer.effectAllowed='move';button.classList.add('dragging');};
+    button.ondragend=()=>{root.querySelectorAll('.workspace-tab').forEach(x=>x.classList.remove('dragging','drop-before','drop-after'));};
+    button.ondragover=e=>{if(!e.dataTransfer.types.includes('application/x-fbi-workspace-tab'))return;e.preventDefault();root.querySelectorAll('.workspace-tab').forEach(x=>x.classList.remove('drop-before','drop-after'));button.classList.add(e.clientX<button.getBoundingClientRect().left+button.offsetWidth/2?'drop-before':'drop-after');};
+    button.ondrop=e=>{const source=e.dataTransfer.getData('application/x-fbi-workspace-tab');if(!source||!workspaceTabs.has(source))return;e.preventDefault();e.stopPropagation();const dest=tab.key;if(source===dest)return;const keys=[...workspaceTabs.keys()].filter(k=>k!==source);let at=keys.indexOf(dest);if(e.clientX>=button.getBoundingClientRect().left+button.offsetWidth/2)at++;keys.splice(at,0,source);const ordered=keys.map(k=>[k,workspaceTabs.get(k)]);workspaceTabs.clear();ordered.forEach(([k,v])=>workspaceTabs.set(k,v));drawWorkspaceTabs();};
     button.type='button';button.role='tab';button.setAttribute('aria-selected',String(tab.key===activeWorkspace));
     const symbol=ce('span','material-symbols-rounded',tab.type==='home'?'home':tab.type==='settings'?'settings':'description');
     symbol.style.fontSize='17px';
