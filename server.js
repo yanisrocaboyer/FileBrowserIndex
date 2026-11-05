@@ -97,6 +97,18 @@ async function initDb() {
     FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS collaboration_presence (
+    node_id INT NOT NULL,user_id INT NOT NULL,seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(node_id,user_id),FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS file_comments (
+    id INT AUTO_INCREMENT PRIMARY KEY,node_id INT NOT NULL,user_id INT NOT NULL,
+    body TEXT NOT NULL,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    resolved TINYINT(1) NOT NULL DEFAULT 0,
+    FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,INDEX(node_id)
+  ) ENGINE=InnoDB`);
   await pool.query(`CREATE TABLE IF NOT EXISTS share_links (
     id INT AUTO_INCREMENT PRIMARY KEY,
     node_id INT NOT NULL UNIQUE,
@@ -650,6 +662,46 @@ app.get('/s/:token', w(async (q, s) => {
    <style>body{margin:0;padding:28px;background:#111a22;color:#e6edf3;font:15px/1.65 system-ui}main{max-width:1000px;margin:auto}h1{font-size:20px}.preview{margin-top:18px}.media{display:block;max-width:100%;max-height:80vh;margin:auto;object-fit:contain}.pdf,.html{width:100%;height:78vh;border:0;background:white;border-radius:8px}.code,.markdown{white-space:pre-wrap;overflow-wrap:anywhere;background:#1b2630;color:#e6edf3;padding:22px;border-radius:9px}.markdown{white-space:normal}.markdown img{max-width:100%}.markdown pre{overflow:auto;background:#101820;padding:14px}.editor{margin-top:20px;padding:16px;background:#1b2630;border-radius:9px}.editor textarea{box-sizing:border-box;width:100%;min-height:180px;background:#101820;color:#e6edf3;padding:12px;border:1px solid #40505e;border-radius:7px;font:13px/1.5 monospace}.editor button{margin:10px 10px 0 0;padding:9px 15px;background:#367cf5;color:white;border:0;border-radius:7px}.muted{color:#9aa8b5}</style>
    <main><h1>${escHtml(name)}</h1><div class="preview">${preview}</div>${editorBox}<p class="muted">${editor?'Lien éditeur':'Partage en lecture seule'}</p></main>
    ${ext==='md'||ext==='markdown'||mime==='text/markdown'?'<script src="/vendor/marked.js"><\/script>':''}<script nonce="${nonce}">${mdScript}${script}</script></html>`);
+}));
+
+// Présence et commentaires sur les fichiers accessibles.
+async function collabAccess(q,s){
+  const c=await ctx(q.user),n=c.byId.get(+q.params.id);
+  if(!n||n.type!=='file'||!can(c,n.id,'v')){fail(s,404,'Fichier inaccessible.');return null;}
+  return {c,n};
+}
+app.get('/api/nodes/:id/collaboration',auth,w(async(q,s)=>{
+  if(!await collabAccess(q,s))return;
+  const [users]=await pool.query('SELECT u.id,u.username,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[+q.params.id]);
+  const [[version]]=await pool.query('SELECT updated_at FROM nodes WHERE id=?',[+q.params.id]);
+  s.json({users,updated_at:version.updated_at});
+}));
+app.post('/api/nodes/:id/collaboration',auth,w(async(q,s)=>{
+  if(!await collabAccess(q,s))return;
+  await pool.query('INSERT INTO collaboration_presence(node_id,user_id,seen_at) VALUES(?,?,NOW()) ON DUPLICATE KEY UPDATE seen_at=NOW()', [+q.params.id,q.user.id]);
+  const [users]=await pool.query('SELECT u.id,u.username,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[+q.params.id]);
+  const [[version]]=await pool.query('SELECT updated_at FROM nodes WHERE id=?',[+q.params.id]);
+  s.json({users,updated_at:version.updated_at});
+}));
+app.get('/api/nodes/:id/comments',auth,w(async(q,s)=>{
+  if(!await collabAccess(q,s))return;
+  const [rows]=await pool.query('SELECT c.id,c.user_id,c.body,c.created_at,c.resolved,u.username FROM file_comments c JOIN users u ON u.id=c.user_id WHERE c.node_id=? ORDER BY c.id',[+q.params.id]);
+  s.json(rows);
+}));
+app.post('/api/nodes/:id/comments',auth,w(async(q,s)=>{
+  if(!await collabAccess(q,s))return;
+  const body=String(q.body.body||'').trim();
+  if(!body||body.length>2000)return fail(s,400,'Commentaire invalide (1 à 2000 caractères).');
+  await pool.query('INSERT INTO file_comments(node_id,user_id,body) VALUES(?,?,?)',[+q.params.id,q.user.id,body]);
+  s.json({ok:true});
+}));
+app.put('/api/nodes/:id/comments/:commentId',auth,w(async(q,s)=>{
+  const access=await collabAccess(q,s);if(!access)return;
+  const [[comment]]=await pool.query('SELECT user_id FROM file_comments WHERE id=? AND node_id=?',[+q.params.commentId,+q.params.id]);
+  if(!comment)return fail(s,404,'Commentaire introuvable.');
+  if(comment.user_id!==q.user.id&&!can(access.c,access.n.id,'e'))return fail(s,403,'Action non autorisée.');
+  await pool.query('UPDATE file_comments SET resolved=? WHERE id=?',[q.body.resolved?1:0,+q.params.commentId]);
+  s.json({ok:true});
 }));
 
 // Partages privés entre comptes : le propriétaire seul gère les accès.
