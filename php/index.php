@@ -105,6 +105,12 @@ if(str_starts_with($uri,'/api/')){
    $body=trim((string)($b['body']??''));if($body===''||len($body)>2000)err(400,'Commentaire invalide (1 à 2000 caractères).');
    q('INSERT INTO file_comments(node_id,user_id,body) VALUES(?,?,?)',[$id,$u['id'],$body]);out(['ok'=>true]);
   }
+  if($method==='DELETE'&&$commentId){
+   $comment=one('SELECT user_id FROM file_comments WHERE id=? AND node_id=?',[$commentId,$id]);
+   if(!$comment)err(404,'Commentaire introuvable.');
+   if((int)$comment['user_id']!==(int)$u['id']&&!can($c,$id,'e'))err(403,'Suppression non autorisée.');
+   q('DELETE FROM file_comments WHERE id=? AND node_id=?',[$commentId,$id]);out(['ok'=>true]);
+  }
   if($method==='PUT'&&$commentId){
    $comment=one('SELECT user_id FROM file_comments WHERE id=? AND node_id=?',[$commentId,$id]);
    if(!$comment)err(404,'Commentaire introuvable.');
