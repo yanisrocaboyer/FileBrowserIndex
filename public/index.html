@@ -1337,11 +1337,13 @@ function renderInlineAnnotations(ta){
     padding:cs.padding,border:cs.border,boxSizing:'border-box',
     fontFamily:cs.fontFamily,fontSize:cs.fontSize,fontWeight:cs.fontWeight,
     fontStyle:cs.fontStyle,lineHeight:cs.lineHeight,letterSpacing:cs.letterSpacing,
-    tabSize:cs.tabSize,textAlign:cs.textAlign,whiteSpace:'pre-wrap',
+    fontVariant:cs.fontVariant,fontKerning:cs.fontKerning,wordSpacing:cs.wordSpacing,
+    tabSize:cs.tabSize,textAlign:cs.textAlign,whiteSpace:cs.whiteSpace==='normal'?'pre-wrap':cs.whiteSpace,
     overflowWrap:cs.overflowWrap,wordBreak:cs.wordBreak,
     overflow:'hidden',pointerEvents:'none',zIndex:'5',
     color:'transparent',background:'transparent'
   });
+  // Code editors use unwrapped lines; pre-wrap would shift annotations on long lines.
   const value=ta.value,ranges=[];
   for(const c of collabComments){
     if(!c.quote_text||Number(c.resolved))continue;
