@@ -1326,15 +1326,22 @@ async function startCollaboration(n){
       $('#collab-presence-count').textContent=String(data.users.length);
       const people=$('#collab-popover');people.replaceChildren(ce('strong','','Personnes présentes'));
       for(const u of data.users){const line=ce('div','urow');const initials=(u.name||u.username||'?').split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();const avatar=ce('span','collab-avatar',u.avatar?'':initials);if(u.avatar){const img=ce('img');img.src=u.avatar;img.alt='';img.width=30;img.height=30;avatar.append(img);}line.append(avatar,ce('span','',u.name||u.username));people.append(line);}
-      if(collabVersion && data.updated_at!==collabVersion && !dirty){
-        const ta=$('#view .ed textarea');
-        if(ta && cur?.id===n.id){
-          const response=await api('/api/nodes/'+n.id+'/content');
-          ta.value=await response.text();ta.dispatchEvent(new Event('collab-refresh'));
-          const frame=$('#view iframe');if(frame?._refresh)frame._refresh();
+      if(collabVersion!==null && data.revision!==collabVersion){
+        if(!dirty && !autosaveBusy){
+          const ta=$('#view .ed textarea');
+          if(ta && cur?.id===n.id){
+            const response=await api('/api/nodes/'+n.id+'/content');
+            if(collabFileId!==n.id || dirty)return;
+            ta.value=await response.text();
+            ta.dispatchEvent(new Event('input',{bubbles:false}));
+            setDirty(false);
+            const frame=$('#view iframe');if(frame?._refresh)frame._refresh();
+          }
+          collabVersion=data.revision;
+        } else {
+          const status=$('.autosave');if(status)status.textContent='Modification distante détectée — sauvegarde protégée contre les conflits';
         }
-      }
-      collabVersion=data.updated_at;
+      } else if(collabVersion===null) collabVersion=data.revision;
       await refreshComments();
     }catch(e){if(collabFileId===n.id)present.textContent='Collaboration indisponible : '+e.message;}
   };
@@ -1342,10 +1349,10 @@ async function startCollaboration(n){
 }
 
 async function save() {
-  const ta = $('#view textarea'); if (!cur || !ta || !cur.edit || autosaveBusy) return;
-  const snapshot=ta.value, fileId=cur.id; autosaveBusy=true; try { await api('/api/nodes/' + fileId, { method: 'PUT', json: { content: snapshot } }); if(cur?.id===fileId){setDirty(ta.value!==snapshot);const st=$('.autosave');if(st)st.textContent='Enregistré · '+new Date().toLocaleTimeString();if(dirty)scheduleAutosave();} await load(); } finally { autosaveBusy=false; }
+  const ta = $('#view .ed textarea'); if (!cur || !ta || !cur.edit || autosaveBusy) return;
+  const snapshot=ta.value, fileId=cur.id; autosaveBusy=true; try { await api('/api/nodes/' + fileId, { method: 'PUT', json: { content: snapshot, ...(collabVersion!==null ? {expected_revision:collabVersion}: {}) } });if(collabVersion!==null)collabVersion++; if(cur?.id===fileId){setDirty(ta.value!==snapshot);const st=$('.autosave');if(st)st.textContent='Enregistré · '+new Date().toLocaleTimeString();if(dirty)scheduleAutosave();} await load(); } finally { autosaveBusy=false; }
 }
-function scheduleAutosave(){if(autosaveTimer||!cur?.edit)return;autosaveTimer=setTimeout(async()=>{autosaveTimer=null;if(dirty){try{await save();}catch(e){const st=$('.autosave');if(st)st.textContent='Échec de la sauvegarde · '+e.message;if(dirty)scheduleAutosave();}}},2000);}
+function scheduleAutosave(){if(autosaveTimer||!cur?.edit)return;autosaveTimer=setTimeout(async()=>{autosaveTimer=null;if(dirty){try{await save();}catch(e){const st=$('.autosave');if(st)st.textContent='Échec de la sauvegarde · '+e.message;if(dirty && !String(e.message).includes('409'))scheduleAutosave();}}},2000);}
 $('#save').onclick = save;
 $('#dl').onclick = () => cur && download(cur);
 addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); } });
