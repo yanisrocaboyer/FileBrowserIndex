@@ -321,6 +321,21 @@ app.post('/api/login', w(async (q, s) => {
 }));
 app.get('/api/me', auth, (q, s) => s.json(q.user));
 
+app.put('/api/me/avatar',auth,w(async(q,s)=>{
+  const avatar=q.body.avatar??null;
+  if(avatar!==null){
+    if(typeof avatar!=='string'||avatar.length>150000)return fail(s,400,'Image trop volumineuse.');
+    const parts=avatar.split(',');
+    if(parts.length!==2||!['data:image/png;base64','data:image/jpeg;base64','data:image/webp;base64'].includes(parts[0]))return fail(s,400,'Format non autorisé.');
+    const bytes=Buffer.from(parts[1],'base64');
+    if(bytes.length>100000||bytes.length===0||bytes.toString('base64').replace(/=+$/,'')!==parts[1].replace(/=+$/,''))return fail(s,400,'Image invalide.');
+    const png=bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+    const jpg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+    const webp=bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP';
+    if(!(png||jpg||webp))return fail(s,400,'Image invalide.');
+  }
+  await pool.query('UPDATE users SET avatar=? WHERE id=?',[avatar,q.user.id]);s.json({ok:true});
+}));
 app.put('/api/me/profile', auth, w(async (q, s) => {
   const name = String(q.body.name || '').trim();
   const username = String(q.body.username || '').trim();
