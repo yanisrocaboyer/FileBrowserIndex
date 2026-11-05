@@ -111,6 +111,7 @@ async function initDb() {
     FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,INDEX(node_id)
   ) ENGINE=InnoDB`);
+  for(const [column,type] of [['cursor_start','INT NULL'],['cursor_end','INT NULL']]) if(!(await hasCol('collaboration_presence',column))) await pool.query('ALTER TABLE collaboration_presence ADD COLUMN '+column+' '+type);
   for(const [column,type] of [['quote_text','TEXT NULL'],['selection_start','INT NULL'],['selection_end','INT NULL']]) if(!(await hasCol('file_comments',column))) await pool.query('ALTER TABLE file_comments ADD COLUMN '+column+' '+type);
   await pool.query(`CREATE TABLE IF NOT EXISTS share_links (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -692,14 +693,14 @@ async function collabAccess(q,s){
 }
 app.get('/api/nodes/:id/collaboration',auth,w(async(q,s)=>{
   if(!await collabAccess(q,s))return;
-  const [users]=await pool.query('SELECT u.id,u.username,u.avatar,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[+q.params.id]);
+  const [users]=await pool.query('SELECT u.id,u.username,u.avatar,p.cursor_start,p.cursor_end,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[+q.params.id]);
   const [[version]]=await pool.query('SELECT updated_at,revision FROM nodes WHERE id=?',[+q.params.id]);
   s.json({users,updated_at:version.updated_at,revision:version.revision});
 }));
 app.post('/api/nodes/:id/collaboration',auth,w(async(q,s)=>{
   if(!await collabAccess(q,s))return;
-  await pool.query('INSERT INTO collaboration_presence(node_id,user_id,seen_at) VALUES(?,?,NOW()) ON DUPLICATE KEY UPDATE seen_at=NOW()', [+q.params.id,q.user.id]);
-  const [users]=await pool.query('SELECT u.id,u.username,u.avatar,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[+q.params.id]);
+  await pool.query('INSERT INTO collaboration_presence(node_id,user_id,seen_at,cursor_start,cursor_end) VALUES(?,?,NOW(),?,?) ON DUPLICATE KEY UPDATE seen_at=NOW(),cursor_start=VALUES(cursor_start),cursor_end=VALUES(cursor_end)', [+q.params.id,q.user.id,Number.isInteger(q.body.cursor_start)?Math.max(0,q.body.cursor_start):null,Number.isInteger(q.body.cursor_end)?Math.max(0,q.body.cursor_end):null]);
+  const [users]=await pool.query('SELECT u.id,u.username,u.avatar,p.cursor_start,p.cursor_end,COALESCE(u.display_name,u.username) name FROM collaboration_presence p JOIN users u ON u.id=p.user_id WHERE p.node_id=? AND p.seen_at>DATE_SUB(NOW(),INTERVAL 35 SECOND) ORDER BY u.username',[+q.params.id]);
   const [[version]]=await pool.query('SELECT updated_at FROM nodes WHERE id=?',[+q.params.id]);
   s.json({users,updated_at:version.updated_at});
 }));
