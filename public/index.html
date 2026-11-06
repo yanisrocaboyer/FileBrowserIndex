@@ -266,6 +266,7 @@ dialog form{gap:14px}
 .site-confirm .confirm-actions button.danger{background:var(--dg);border-color:var(--dg);color:#fff}
 @media(max-width:650px){.settings #settings-uform,.settings #settings-gform{grid-template-columns:1fr}.settings .settings-profile-hero{padding:18px;gap:12px}.settings .settings-profile-hero .profile-avatar{width:60px;height:60px}}
 
+.code-editor{position:relative}.code-suggestions{position:absolute;z-index:30;top:14px;right:14px;min-width:170px;max-width:250px;max-height:240px;overflow:auto;padding:5px;background:var(--pn);border:1px solid var(--ln);border-radius:11px;box-shadow:0 12px 32px #0004}.code-suggestions[hidden]{display:none}.code-suggestion{display:block;width:100%;text-align:left;border:0;background:transparent;padding:8px 10px;font:13px ui-monospace,monospace}.code-suggestion.selected,.code-suggestion:hover{background:var(--hv);color:var(--ac)}
 </style>
 </head>
 <body>
@@ -1349,6 +1350,39 @@ $('#vm').onclick = e => { const m = e.target.dataset && e.target.dataset.m; if (
 
 const CODE_EXTS=new Set(['py','json','js','mjs','cjs','ts','c','h','cc','cpp','cxx','hpp','cs','java','go','rs','sh','bash','sql','php','rb','css','xml','yaml','yml','toml']);
 const langForExt=x=>({py:'python',js:'javascript',mjs:'javascript',cjs:'javascript',ts:'typescript',cc:'cpp',cxx:'cpp',hpp:'cpp',cs:'csharp',rs:'rust',sh:'bash',yml:'yaml'}[x]||x);
+
+const HTML_COMPLETIONS=['html','head','body','title','meta','link','style','script','main','header','footer','nav','section','article','aside','div','span','p','h1','h2','h3','h4','a','img','ul','ol','li','button','input','label','form','textarea','select','option','table','thead','tbody','tr','th','td','br','hr','pre','code','strong','em','small','details','summary','video','audio','canvas'];
+const CSS_COMPLETIONS=['display','position','color','background','background-color','font-size','font-family','font-weight','line-height','margin','margin-top','margin-bottom','padding','padding-top','padding-bottom','border','border-radius','border-color','box-shadow','width','height','max-width','min-height','opacity','overflow','overflow-x','overflow-y','flex','flex-direction','justify-content','align-items','gap','grid','grid-template-columns','grid-template-rows','transform','transition','animation','z-index','cursor','text-align','text-decoration','white-space','box-sizing','visibility','content','object-fit'];
+function enableCodeCompletion(ta,language,wrap){
+  if(!['html','css'].includes(language))return;
+  const panel=ce('div','code-suggestions');panel.hidden=true;panel.setAttribute('role','listbox');
+  wrap.append(panel);let choices=[],active=0,from=0,to=0;
+  const close=()=>{panel.hidden=true;choices=[];};
+  const accept=()=>{if(!choices.length)return;ta.setRangeText(choices[active],from,to,'end');ta.dispatchEvent(new Event('input',{bubbles:true}));close();ta.focus();};
+  const update=()=>{
+    if(ta.selectionStart!==ta.selectionEnd)return close();
+    const before=ta.value.slice(0,ta.selectionStart);
+    let match;
+    if(language==='html')match=before.match(/<\/?([a-z][\w-]*)$/i);
+    else if(/\{[^}]*$/.test(before))match=before.match(/(?:^|[;{]\s*)([a-z-]{2,})$/i);
+    if(!match)return close();
+    const prefix=match[1].toLowerCase(),all=language==='html'?HTML_COMPLETIONS:CSS_COMPLETIONS;
+    choices=all.filter(x=>x.startsWith(prefix)&&x!==prefix).slice(0,8);
+    if(!choices.length)return close();
+    from=ta.selectionStart-prefix.length;to=ta.selectionStart;active=0;panel.replaceChildren();
+    choices.forEach((choice,i)=>{const b=ce('button','code-suggestion'+(i===0?' selected':''),choice);b.type='button';b.setAttribute('role','option');b.onmousedown=e=>{e.preventDefault();active=i;accept();};panel.append(b);});
+    panel.hidden=false;
+  };
+  ta.addEventListener('input',update);
+  ta.addEventListener('blur',()=>{if(!panel.matches(':hover'))close();});
+  ta.addEventListener('keydown',e=>{
+    if(panel.hidden)return;
+    if(e.key==='Escape'){e.preventDefault();close();}
+    else if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();active=(active+(e.key==='ArrowDown'?1:-1)+choices.length)%choices.length;[...panel.children].forEach((x,i)=>x.classList.toggle('selected',i===active));}
+    else if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();e.stopImmediatePropagation();accept();}
+  },true);
+}
+
 function setupCodeEditor(ta, extName) {
   const wrap=ce('div','code-editor'), pre=ce('pre'); const code=ce('code');pre.append(code);wrap.append(pre,ta);ta.classList.add('code-input');
   const paint=()=>{code.innerHTML=highlightCode(ta.value,langForExt(extName))+'\n';pre.scrollTop=ta.scrollTop;pre.scrollLeft=ta.scrollLeft;if(collabFileId===cur?.id)queueMicrotask(paintCommentHighlights);};
@@ -1359,6 +1393,7 @@ function setupCodeEditor(ta, extName) {
       else{ta.setRangeText('    ',a,b,'end');}ta.dispatchEvent(new Event('input'));return;}
     if(e.key==='Enter'){const a=ta.selectionStart,b=ta.selectionEnd;const line=ta.value.slice(0,a).split('\n').pop();const indent=(line.match(/^\s*/)||[''])[0];let extra='';const l=langForExt(extName);if((l==='python'||l==='json'||l==='javascript'||l==='c'||l==='cpp'||l==='csharp')&&/[{\[:]\s*$/.test(line))extra='    ';e.preventDefault();ta.setRangeText('\n'+indent+extra,a,b,'end');ta.dispatchEvent(new Event('input'));}
   });
+  enableCodeCompletion(ta,langForExt(extName),wrap);
   paint();return wrap;
 }
 
