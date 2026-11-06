@@ -1007,7 +1007,47 @@ const KX = `\n<link rel="stylesheet" href="vendor/katex/katex.min.css">\n<script
 const RE = /!?\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]|==([^=\n]+?)==|(^|\s)#([\p{L}_][\p{L}\d_\/-]*)/gu;
 // Coloration syntaxique locale (aucun script tiers ou CDN). Le même moteur sert aux blocs Markdown et aux fichiers source.
 const LANGS = new Set(['py','python','json','js','javascript','ts','typescript','c','h','cpp','c++','cs','csharp','java','bash','sh','sql','html','css','xml','yaml','yml','toml','go','rust','php','rb']);
+
+// HTML/CSS tokenizers preserve whitespace exactly for the mirrored editor.
+function highlightMarkup(src){
+  const re=/(<!--[\s\S]*?-->|<![^>]*>|<\/?[A-Za-z][^>]*>)/g;
+  let out='',last=0,m;
+  while((m=re.exec(src))){
+    out+=esc(src.slice(last,m.index));const token=m[0];
+    if(token.startsWith('<!--'))out+='<span class="hl-comment">'+esc(token)+'</span>';
+    else if(token.startsWith('<!'))out+='<span class="hl-keyword">'+esc(token)+'</span>';
+    else{
+      const tag=token.match(/^(<\/?)([\w:-]+)/);
+      if(!tag){out+=esc(token);last=re.lastIndex;continue;}
+      out+='<span class="hl-operator">'+esc(tag[1])+'</span><span class="hl-keyword">'+esc(tag[2])+'</span>';
+      let rest=token.slice(tag[0].length);
+      const attrs=/([\w:-]+)(\s*=\s*)("[^"]*"|'[^']*'|[^\s>]+)/g;
+      let pos=0,a;
+      while((a=attrs.exec(rest))){
+        out+=esc(rest.slice(pos,a.index))+'<span class="hl-property">'+esc(a[1])+'</span>'+esc(a[2])+'<span class="hl-string">'+esc(a[3])+'</span>';pos=attrs.lastIndex;
+      }
+      out+=esc(rest.slice(pos)); 
+    }
+    last=re.lastIndex;
+  }
+  return out+esc(src.slice(last));
+}
+function highlightStyles(src){
+  const re=/(\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|#[\da-fA-F]{3,8}\b|@[\w-]+|[\w-]+(?=\s*:)|\b\d+(?:\.\d+)?(?:px|rem|em|%|vh|vw|s|ms)?\b|[{}:;(),])/g;
+  let out='',last=0,m,brace=0;
+  while((m=re.exec(src))){
+    out+=esc(src.slice(last,m.index));const t=m[0];
+    const cls=t.startsWith('/*')?'hl-comment':/^['"]/.test(t)?'hl-string':/^#|^\d/.test(t)?'hl-number':/^@/.test(t)?'hl-keyword':t==='{'||t==='}'?'hl-operator':/^[\w-]+$/.test(t)&&brace>0?'hl-property':'hl-operator';
+    out+='<span class="'+cls+'">'+esc(t)+'</span>';
+    if(t==='{')brace++;else if(t==='}')brace=Math.max(0,brace-1);
+    last=re.lastIndex;
+  }
+  return out+esc(src.slice(last));
+}
+
 function highlightCode(source, lang='') {
+  if(['html','xml'].includes(String(lang).toLowerCase()))return highlightMarkup(source);
+  if(String(lang).toLowerCase()==='css')return highlightStyles(source);
   const l=String(lang||'').toLowerCase();
   if(!LANGS.has(l)) return esc(source);
   const keywords={
