@@ -267,6 +267,7 @@ dialog form{gap:14px}
 @media(max-width:650px){.settings #settings-uform,.settings #settings-gform{grid-template-columns:1fr}.settings .settings-profile-hero{padding:18px;gap:12px}.settings .settings-profile-hero .profile-avatar{width:60px;height:60px}}
 
 .code-editor{position:relative}.code-suggestions{position:absolute;z-index:30;top:14px;right:14px;min-width:170px;max-width:250px;max-height:240px;overflow:auto;padding:5px;background:var(--pn);border:1px solid var(--ln);border-radius:11px;box-shadow:0 12px 32px #0004}.code-suggestions[hidden]{display:none}.code-suggestion{display:block;width:100%;text-align:left;border:0;background:transparent;padding:8px 10px;font:13px ui-monospace,monospace}.code-suggestion.selected,.code-suggestion:hover{background:var(--hv);color:var(--ac)}
+.python-run-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 15px;border-top:1px solid var(--ln)}.python-run-bar button{min-height:35px}.python-output{margin:0 14px 14px;padding:14px;min-height:70px;max-height:230px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);border:1px solid var(--ln);border-radius:10px;font:13px/1.6 ui-monospace,monospace;color:var(--tx)}
 </style>
 </head>
 <body>
@@ -1383,6 +1384,31 @@ function enableCodeCompletion(ta,language,wrap){
   },true);
 }
 
+
+function addPythonRunner(editor,ta){
+  const bar=ce('div','python-run-bar');
+  const run=ce('button','pri','▶ Exécuter Python'),stop=ce('button','','Arrêter');
+  const output=ce('pre','python-output','Résultat affiché ici après exécution.');
+  const status=ce('span','mu','Interpréteur Python dans le navigateur (Pyodide).');
+  let worker=null,timeout=null;
+  const cleanup=()=>{if(timeout)clearTimeout(timeout);timeout=null;worker?.terminate();worker=null;run.disabled=false;};
+  run.onclick=()=>{
+    cleanup();output.textContent='Chargement de Python et exécution…';run.disabled=true;
+    try{
+      worker=new Worker('python-worker.js');
+      const id=Date.now();
+      worker.onmessage=e=>{if(e.data?.id!==id)return;output.textContent=e.data.output||'(Aucune sortie)';status.textContent=e.data.ok?'Exécution terminée':'Erreur Python';cleanup();};
+      worker.onerror=e=>{output.textContent='Interpréteur indisponible : '+(e.message||'erreur de chargement');status.textContent='Échec';cleanup();};
+      worker.postMessage({id,source:ta.value});
+      timeout=setTimeout(()=>{output.textContent+='\nExécution interrompue après 30 secondes.';status.textContent='Délai dépassé';cleanup();},30000);
+    }catch(e){output.textContent=String(e);cleanup();}
+  };
+  stop.onclick=()=>{if(worker){output.textContent+='\nExécution interrompue.';status.textContent='Arrêté';cleanup();}};
+  bar.append(run,stop,status);editor.append(bar,output);
+  const observer=new MutationObserver(()=>{if(!editor.isConnected){cleanup();observer.disconnect();}});
+  observer.observe(document.querySelector('#view'),{childList:true,subtree:true});
+}
+
 function setupCodeEditor(ta, extName) {
   const wrap=ce('div','code-editor'), pre=ce('pre'); const code=ce('code');pre.append(code);wrap.append(pre,ta);ta.classList.add('code-input');
   const paint=()=>{code.innerHTML=highlightCode(ta.value,langForExt(extName))+'\n';pre.scrollTop=ta.scrollTop;pre.scrollLeft=ta.scrollLeft;if(collabFileId===cur?.id)queueMicrotask(paintCommentHighlights);};
@@ -1516,6 +1542,7 @@ async function openNode(n) {
     const ed = ce('div', 'ed'); if (n.edit && !isCode) ed.append(toolbar(ta, k));
     if(isCode){const wrap=setupCodeEditor(ta,ex);ed.append(wrap);}else ed.append(ta);
     const status=ce('div','autosave','Enregistrement automatique : après 2 secondes d’inactivité');ed.append(status);
+    if(ex==='py' || ex==='python')addPythonRunner(ed,ta);
     const f = ce('iframe'); f.setAttribute('sandbox', '');
     let previewFrame=f;
     if(k==='html'){
