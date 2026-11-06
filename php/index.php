@@ -136,7 +136,7 @@ function share(string $token):never {
  if($showSource)echo '<section id="share-source-panel" class="share-card share-source-panel" hidden><h2>Code source</h2><pre><code id="share-source-code" class="share-source-code"></code></pre></section>';
  if($editable)echo '<section class="share-card"><h2>Modifier le fichier</h2><textarea id="edit-content" class="share-editor" spellcheck="false">'.$source.'</textarea><div class="share-editor-actions"><button class="share-button share-button-primary" id="save">Enregistrer</button><span id="status" role="status" class="share-muted"></span></div></section>';
  echo '<textarea id="share-source" hidden>'.$source.'</textarea></main>';
- if($md)echo '<script src="'.$prefix.'/vendor/marked.js" defer></script>';
+ if($md||$mode==='zip')echo '<script src="'.$prefix.'/vendor/marked.js" defer></script>';
  echo '<script src="'.$prefix.'/zip-view.js" defer></script><script src="'.$prefix.'/share-view.js" defer></script></body></html>';
  exit;
 }
