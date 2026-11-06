@@ -10,7 +10,7 @@ for (const item of ['index.php', 'config.example.php', '.htaccess', 'README.md']
   const src = path.join(root, 'php', item);
   fs.copyFileSync(src, path.join(out, item));
 }
-for (const file of ['index.html', 'manifest.webmanifest', 'sw.js', 'python-worker.js', 'share-view.js', 'share-view.css']) {
+for (const file of ['index.html', 'manifest.webmanifest', 'sw.js', 'python-worker.js', 'share-view.js', 'share-view.css', 'zip-view.js']) {
   fs.copyFileSync(path.join(root, 'public', file), path.join(out, file));
 }
 fs.cpSync(path.join(root, 'public', 'assets'), path.join(out, 'assets'), { recursive: true });
