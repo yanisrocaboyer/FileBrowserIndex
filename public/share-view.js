@@ -31,6 +31,26 @@ function paintCode(el,text,lang){
  el.innerHTML=highlight(text,lang);
  el.classList.add('share-code','share-code-'+lang);
 }
+function markdownFallback(source){
+ const lines=String(source).replace(/\r\n?/g,'\n').split('\n'),out=[];let para=[],list=null,code=null;
+ const inline=t=>escapeHTML(t).replace(/\x60([^\x60]+)\x60/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>').replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2">$1</a>');
+ const flush=()=>{if(para.length){out.push('<p>'+inline(para.join(' '))+'</p>');para=[];}if(list){out.push('</'+list+'>');list=null;}};
+ for(const line of lines){
+  if(code!==null){if(/^\x60\x60\x60/.test(line)){out.push('<pre><code>'+escapeHTML(code.join('\n'))+'</code></pre>');code=null;}else code.push(line);continue;}
+  if(/^\x60\x60\x60/.test(line)){flush();code=[];continue;}
+  if(!line.trim()){flush();continue;}
+  const heading=/^(#{1,6})\s+(.+)$/.exec(line);
+  if(heading){flush();const n=heading[1].length;out.push('<h'+n+'>'+inline(heading[2])+'</h'+n+'>');continue;}
+  const li=/^\s*([-*+]\s+|\d+\.\s+)(.+)$/.exec(line);
+  if(li){if(para.length){out.push('<p>'+inline(para.join(' '))+'</p>');para=[];}const type=/\d/.test(li[1][0])?'ol':'ul';if(list!==type){if(list)out.push('</'+list+'>');out.push('<'+type+'>');list=type;}out.push('<li>'+inline(li[2])+'</li>');continue;}
+  if(list){out.push('</'+list+'>');list=null;}
+  if(/^>\s?/.test(line)){flush();out.push('<blockquote><p>'+inline(line.replace(/^>\s?/,''))+'</p></blockquote>');continue;}
+  if(/^\s*([-*_])\1{2,}\s*$/.test(line)){flush();out.push('<hr>');continue;}
+  para.push(line.trim());
+ }
+ flush();if(code!==null)out.push('<pre><code>'+escapeHTML(code.join('\n'))+'</code></pre>');
+ return out.join('\n');
+}
 function safeMarkdown(html){
  const doc=new DOMParser().parseFromString('<div>'+html+'</div>','text/html');
  const allowed=new Set('p br h1 h2 h3 h4 h5 h6 strong b em i del s u blockquote pre code ul ol li a img hr table thead tbody tr th td details summary input'.split(' '));
@@ -70,7 +90,7 @@ function render(){
  if(mode==='html'){
   const frame=preview.querySelector('iframe');
   if(frame){
-   const policy='<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:;">';
+   const policy='<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'none\'; style-src \'unsafe-inline\' https:; img-src data: blob: https:; font-src data: https:; connect-src \'none\'; form-action \'none\';">';
    frame.srcdoc=policy+value;
    frame.classList.add('share-html-frame');
   }
@@ -79,9 +99,7 @@ function render(){
   if(article){
    article.replaceChildren();
    article.classList.add('share-markdown','share-rendered-markdown');
-   if(window.marked){
-    try{article.append(safeMarkdown(marked.parse(value,{gfm:true,breaks:true})));}catch(e){article.textContent=value;}
-   }else article.textContent=value;
+   try{const html=window.marked?.parse?window.marked.parse(value,{gfm:true,breaks:true}):markdownFallback(value);article.append(safeMarkdown(html));}catch(e){article.append(safeMarkdown(markdownFallback(value)));}
   }
  }else if(mode==='code'){
   const code=preview.querySelector('code');if(code)paintCode(code,value,language(code));
