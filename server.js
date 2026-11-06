@@ -724,8 +724,8 @@ app.get('/s/:token', w(async (q, s) => {
   const isMd=['md','markdown'].includes(ext)||mime==='text/markdown';
   const isCode=!isHtml&&!isMd&&(mime.startsWith('text/')||['txt','json','css','js','ts','py','java','c','cpp','cs','sh','yml','yaml','xml','csv','log'].includes(ext));
   const language=isHtml?'html':isMd?'markdown':ext;
-  const mode=isHtml?'html':isMd?'markdown':isCode?'code':'other';
-  const contentPreview=isHtml?'<iframe class="share-html-frame" title="Aperçu HTML" sandbox=""></iframe>'
+  const mode=ext==='zip'?'zip':isHtml?'html':isMd?'markdown':isCode?'code':'other';
+  const contentPreview=mode==='zip'?'<div class="fbi-zip-host"></div>':isHtml?'<iframe class="share-html-frame" title="Aperçu HTML" sandbox=""></iframe>'
     :isMd?'<article class="share-markdown share-rendered-markdown"></article>'
     :isCode?'<pre><code class="share-code" data-lang="'+escHtml(language)+'"></code></pre>'
     :preview;
@@ -740,7 +740,7 @@ app.get('/s/:token', w(async (q, s) => {
    <section class="share-card"><h2>Aperçu</h2><div id="share-preview" class="share-preview">${contentPreview}</div></section>
    ${showSource?'<section id="share-source-panel" class="share-card share-source-panel" hidden><h2>Code source</h2><pre><code id="share-source-code" class="share-source-code"></code></pre></section>':''}
    ${editorHTML}<textarea id="share-source" hidden>${escHtml(textContent)}</textarea></main>
-   ${isMd?'<script src="../../vendor/marked.js" defer></script>':''}<script src="../../share-view.js" defer></script></body></html>`);
+   ${isMd?'<script src="../../vendor/marked.js" defer></script>':''}<script src="../../zip-view.js" defer></script><script src="../../share-view.js" defer></script></body></html>`);
 
 }));
 
