@@ -1532,7 +1532,24 @@ async function openNode(n) {
     const area=ce('div','fbi-zip-host');V.append(area);
     const endpoint=`/api/nodes/${n.id}/zip-preview`;
     const zipFetch=async(path)=>{const r=await api(endpoint+(path?'?entry='+encodeURIComponent(path):''));return path?r.blob():r.json();};
-    FBIZipExplorer(area,{
+    if(typeof window.FBIZipExplorer!=='function'){
+      area.textContent='Chargement de l’explorateur ZIP…';
+      try {
+        await new Promise((resolve,reject)=>{
+          const script=document.createElement('script');
+          script.src='zip-view.js?v=20261106b';
+          script.onload=resolve;
+          script.onerror=()=>reject(new Error('Impossible de charger zip-view.js. Vérifie sa présence dans /fbi/.'));
+          document.head.append(script);
+        });
+        if(typeof window.FBIZipExplorer!=='function')throw new Error('zip-view.js ne définit pas FBIZipExplorer (vérifie la console JavaScript).');
+      }catch(error){
+        area.textContent=error.message;
+        const b=ce('button','pri','Télécharger le ZIP');b.onclick=()=>download(n);area.append(b);
+        return;
+      }
+    }
+    window.FBIZipExplorer(area,{
       list:()=>zipFetch(''),
       read:path=>zipFetch(path),
       download:async path=>{
@@ -1899,5 +1916,5 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   });
 }
 </script>
-<script src="zip-view.js"></script>\n</body>
+<script src="zip-view.js?v=20261106b"></script>\n</body>
 </html>
