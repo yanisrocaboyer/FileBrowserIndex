@@ -109,14 +109,15 @@ function share(string $token):never {
  $html=in_array($ext,['html','htm'],true)||$mime==='text/html';
  $md=in_array($ext,['md','markdown'],true)||$mime==='text/markdown';
  $code=!$html&&!$md&&(str_starts_with($mime,'text/')||in_array($ext,['txt','json','css','js','ts','py','java','c','cpp','cs','sh','yml','yaml','xml','csv','log'],true));
- $mode=$html?'html':($md?'markdown':($code?'code':'other'));
+ $mode=$ext==='zip'?'zip':($html?'html':($md?'markdown':($code?'code':'other')));
  $lang=$html?'html':($md?'markdown':$ext);
  $base=rtrim(str_replace('\\','/',dirname($_SERVER['SCRIPT_NAME']??'/index.php')),'/');
  if($base==='/')$base='';
  $prefix=htmlspecialchars($base,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
  $download=$prefix.'/s/'.$token.'/download';
  $preview='';
- if($html)$preview='<iframe class="share-html-frame" title="Aperçu HTML" sandbox=""></iframe>';
+ if($mode==='zip')$preview='<div class="fbi-zip-host"></div>';
+ elseif($html)$preview='<iframe class="share-html-frame" title="Aperçu HTML" sandbox=""></iframe>';
  elseif($md)$preview='<article class="share-markdown share-rendered-markdown"></article>';
  elseif($code)$preview='<pre><code class="share-code" data-lang="'.htmlspecialchars($lang,ENT_QUOTES).'"></code></pre>';
  elseif(str_starts_with($mime,'image/')&&in_array($mime,['image/png','image/jpeg','image/gif','image/webp','image/bmp','image/x-icon'],true))$preview='<img class="share-media" alt="'.$name.'" src="data:'.htmlspecialchars($mime,ENT_QUOTES).';base64,'.base64_encode($raw).'">';
@@ -136,7 +137,7 @@ function share(string $token):never {
  if($editable)echo '<section class="share-card"><h2>Modifier le fichier</h2><textarea id="edit-content" class="share-editor" spellcheck="false">'.$source.'</textarea><div class="share-editor-actions"><button class="share-button share-button-primary" id="save">Enregistrer</button><span id="status" role="status" class="share-muted"></span></div></section>';
  echo '<textarea id="share-source" hidden>'.$source.'</textarea></main>';
  if($md)echo '<script src="'.$prefix.'/vendor/marked.js" defer></script>';
- echo '<script src="'.$prefix.'/share-view.js" defer></script></body></html>';
+ echo '<script src="'.$prefix.'/zip-view.js" defer></script><script src="'.$prefix.'/share-view.js" defer></script></body></html>';
  exit;
 }
 
