@@ -1527,6 +1527,20 @@ async function openNode(n) {
   V.innerHTML = ''; setDirty(false); $('#dl').hidden = false; $('#vm').hidden = true;
   $('#save').hidden = !(['html', 'md', 'txt'].includes(k) && n.edit); $('#share').hidden = !(n.type === 'file' && n.edit);
   startCollaboration(n);
+  if (ext(n.name) === 'zip') {
+    const area=ce('div','fbi-zip-host');V.append(area);
+    const endpoint=`/api/nodes/${n.id}/zip-preview`;
+    const zipFetch=async(path)=>{const r=await api(endpoint+(path?'?entry='+encodeURIComponent(path):''));return path?r.blob():r.json();};
+    FBIZipExplorer(area,{
+      list:()=>zipFetch(''),
+      read:path=>zipFetch(path),
+      download:async path=>{
+        const r=await api(endpoint+'?entry='+encodeURIComponent(path)+'&download=1');
+        const blob=await r.blob(),href=URL.createObjectURL(blob),a=ce('a');a.href=href;a.download=path.split('/').pop();document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(href);a.remove();},2000);
+      }
+    });
+    return;
+  }
   if (k === 'bin') { // pas d'aperçu : taille + téléchargement (+ extraction pour un zip)
     const p = ce('div', 'bin'); p.append(ce('b', '', n.name), ce('span', 'mu', fmt(n.size) + ' · aperçu indisponible'));
     const b = ce('button', 'pri', 'Télécharger'); b.onclick = () => download(n); p.append(b);
@@ -1884,5 +1898,5 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   });
 }
 </script>
-</body>
+<script src="zip-view.js"></script>\n</body>
 </html>
