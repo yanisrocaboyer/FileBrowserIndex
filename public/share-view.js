@@ -105,5 +105,13 @@ if(editor){
   }catch(e){status.textContent=e.message||'Erreur';}finally{save.disabled=false;}
  });
 }
+if(mode==='zip'&&window.FBIZipExplorer){
+ const endpoint=base+'/s/'+token+'/zip-preview';
+ window.FBIZipExplorer(preview,{
+  list:async()=>{const r=await fetch(endpoint);if(!r.ok)throw Error('Impossible de lire cette archive.');return r.json();},
+  read:async path=>{const r=await fetch(endpoint+'?entry='+encodeURIComponent(path));if(!r.ok)throw Error('Aperçu indisponible.');return r.blob();},
+  download:path=>{const a=document.createElement('a');a.href=endpoint+'?entry='+encodeURIComponent(path)+'&download=1';a.download=path.split('/').pop();document.body.append(a);a.click();a.remove();}
+ });
+}
 render();
 })();
