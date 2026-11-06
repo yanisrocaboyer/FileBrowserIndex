@@ -740,7 +740,7 @@ app.get('/s/:token', w(async (q, s) => {
    <section class="share-card"><h2>Aperçu</h2><div id="share-preview" class="share-preview">${contentPreview}</div></section>
    ${showSource?'<section id="share-source-panel" class="share-card share-source-panel" hidden><h2>Code source</h2><pre><code id="share-source-code" class="share-source-code"></code></pre></section>':''}
    ${editorHTML}<textarea id="share-source" hidden>${escHtml(textContent)}</textarea></main>
-   ${isMd||mode==='zip'?'<script src="../../vendor/marked.js" defer></script>':''}<script src="../../zip-view.js" defer></script><script src="../../share-view.js" defer></script></body></html>`);
+   ${isMd||mode==='zip'?'<script src="../../vendor/marked.js?v=20261106b" defer></script>':''}<script src="../../zip-view.js?v=20261106b" defer></script><script src="../../share-view.js?v=20261106b" defer></script></body></html>`);
 
 }));
 
