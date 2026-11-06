@@ -635,6 +635,39 @@ app.put('/api/public-share/:token', w(async (q, s) => {
   await pool.query('UPDATE nodes SET content=?,size=? WHERE id=?', [b, b.length, r.node_id]);
   s.json({ ok: true });
 }));
+
+const ZIP_ENTRY_LIMIT=1500, ZIP_PREVIEW_LIMIT=4*1024*1024;
+function zipEntrySafe(name){return name&&!name.includes('\\')&&!name.startsWith('/')&&!name.split('/').some(p=>p==='..'||p==='.')&&!/^[a-z]:/i.test(name);}
+function zipIndex(content){
+ const zip=new AdmZip(content), entries=zip.getEntries();
+ if(entries.length>ZIP_ENTRY_LIMIT)throw Object.assign(new Error('Archive contenant trop de fichiers.'),{status:413});
+ return {zip,entries:entries.filter(e=>zipEntrySafe(e.entryName)).map(e=>({path:e.entryName,size:e.header.size,dir:e.isDirectory}))};
+}
+function zipRespond(s,content,entryPath,download){
+ let zip,entries;try{({zip,entries}=zipIndex(content));}catch(e){return fail(s,e.status||400,e.message||'Archive ZIP invalide.');}
+ if(!entryPath)return s.json({entries});
+ const entry=entries.find(e=>e.path===entryPath&&!e.dir);
+ if(!entry)return fail(s,404,'Fichier absent de cette archive.');
+ if(entry.size>ZIP_PREVIEW_LIMIT&&!download)return fail(s,413,'Fichier trop volumineux pour un aperçu.');
+ if(entry.size>100*1024*1024)return fail(s,413,'Entrée trop volumineuse.');
+ let data;try{data=zip.getEntry(entryPath).getData();}catch{return fail(s,400,'Entrée ZIP illisible.');}
+ const filename=entryPath.split('/').pop();
+ s.set('Cache-Control','no-store').set('X-Content-Type-Options','nosniff');
+ if(download)return s.attachment(filename).type('application/octet-stream').send(data);
+ return s.type('application/octet-stream').send(data);
+}
+app.get('/api/nodes/:id/zip-preview',auth,w(async(q,s)=>{
+ const c=await ctx(q.user),n=c.byId.get(+q.params.id);
+ if(!n||n.type!=='file'||!can(c,n.id,'v')||!n.name.toLowerCase().endsWith('.zip'))return fail(s,404,'Archive inaccessible.');
+ const [[r]]=await pool.query('SELECT content FROM nodes WHERE id=?',[n.id]);
+ return zipRespond(s,r.content||Buffer.alloc(0),q.query.entry||'',q.query.download==='1');
+}));
+app.get('/s/:token/zip-preview',w(async(q,s)=>{
+ const [[r]]=await pool.query("SELECT n.name,n.content FROM share_links sl JOIN nodes n ON n.id=sl.node_id WHERE sl.token=? AND sl.enabled=1 AND n.type='file'",[q.params.token]);
+ if(!r||!r.name.toLowerCase().endsWith('.zip'))return fail(s,404,'Archive inaccessible.');
+ return zipRespond(s,r.content||Buffer.alloc(0),q.query.entry||'',q.query.download==='1');
+}));
+
 app.get('/s/:token/download', w(async (q, s) => {
   const [[r]] = await pool.query(
     'SELECT n.name,n.content FROM share_links sl JOIN nodes n ON n.id=sl.node_id WHERE sl.token=? AND sl.enabled=1 AND n.type=?',
