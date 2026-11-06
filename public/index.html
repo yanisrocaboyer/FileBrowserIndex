@@ -1392,16 +1392,23 @@ function addPythonRunner(editor,ta){
   const status=ce('span','mu','Interpréteur Python dans le navigateur (Pyodide).');
   let worker=null,timeout=null;
   const cleanup=()=>{if(timeout)clearTimeout(timeout);timeout=null;worker?.terminate();worker=null;run.disabled=false;};
-  run.onclick=()=>{
-    cleanup();output.textContent='Chargement de Python et exécution…';run.disabled=true;
+  run.onclick=async()=>{
+    cleanup();output.textContent='Vérification de l’interpréteur…';run.disabled=true;
     try{
-      worker=new Worker('python-worker.js');
+      const workerURL=new URL('python-worker.js',document.baseURI);
+      const response=await fetch(workerURL,{cache:'no-store'});
+      const type=response.headers.get('content-type')||'';
+      if(!response.ok||(!/javascript|ecmascript/i.test(type)&&/^\s*</.test((await response.clone().text()).slice(0,200)))){
+        throw new Error('Le fichier python-worker.js n’est pas servi comme JavaScript (HTTP '+response.status+', '+(type||'type inconnu')+'). Vérifie qu’il est présent dans /fbi/ sur OVH et non remplacé par index.php.');
+      }
+      output.textContent='Chargement de Python et exécution…';
+      worker=new Worker(workerURL);
       const id=Date.now();
       worker.onmessage=e=>{if(e.data?.id!==id)return;output.textContent=e.data.output||'(Aucune sortie)';status.textContent=e.data.ok?'Exécution terminée':'Erreur Python';cleanup();};
       worker.onerror=e=>{output.textContent='Interpréteur indisponible : '+(e.message||'erreur de chargement');status.textContent='Échec';cleanup();};
       worker.postMessage({id,source:ta.value});
       timeout=setTimeout(()=>{output.textContent+='\nExécution interrompue après 30 secondes.';status.textContent='Délai dépassé';cleanup();},30000);
-    }catch(e){output.textContent=String(e);cleanup();}
+    }catch(e){output.textContent='Interpréteur indisponible : '+String(e.message||e);status.textContent='Échec';cleanup();}
   };
   stop.onclick=()=>{if(worker){output.textContent+='\nExécution interrompue.';status.textContent='Arrêté';cleanup();}};
   bar.append(run,stop,status);editor.append(bar,output);
