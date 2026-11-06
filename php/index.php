@@ -70,6 +70,34 @@ function addNode(int $uid,?int $parent,string $name,string $type,string $data=''
 function copyNode(array $c,int $id,int $uid,?int $parent,string $name,?int $owner):int{$n=one('SELECT type,content FROM nodes WHERE id=?',[$id]);$new=addNode($uid,$parent,$name,$n['type'],$n['content']??'',$owner);if($n['type']==='folder')foreach($c['kids'][$id]??[] as $k)if(can($c,$k,'v'))copyNode($c,$k,$uid,$new,$c['by'][$k]['name'],$owner);return $new;}
 function zipAdd(array $c,int $id,ZipArchive $z,string $prefix=''):void{$n=$c['by'][$id];if($n['type']==='file'){$r=one('SELECT content FROM nodes WHERE id=?',[$id]);$z->addFromString($prefix.$n['name'],$r['content']??'');}else{$z->addEmptyDir($prefix.$n['name']);foreach($c['kids'][$id]??[] as $k)if(can($c,$k,'v'))zipAdd($c,$k,$z,$prefix.$n['name'].'/');}}
 function target(array $u,int $id):array{$t=one('SELECT id,role FROM users WHERE id=?',[$id]);if(!$t)err(404,'Compte introuvable.');if($t['role']==='root'||(int)$t['id']===(int)$u['id']||($u['role']!=='root'&&$t['role']!=='user'))err(403,'Action non autorisée sur ce compte.');return $t;}
+function zipPreview(string $data,?string $entry,bool $download):never {
+ if(!class_exists('ZipArchive'))err(500,'Extension ZipArchive requise.');
+ $tmp=tempnam(sys_get_temp_dir(),'fbi-zip-');
+ try{
+  file_put_contents($tmp,$data);
+  $zip=new ZipArchive();
+  if($zip->open($tmp)!==true)err(400,'Archive ZIP invalide.');
+  if($zip->numFiles>1500)err(413,'Archive contenant trop de fichiers.');
+  $items=[];
+  for($i=0;$i<$zip->numFiles;$i++){
+   $st=$zip->statIndex($i);if(!$st)continue;
+   $path=$st['name'];$parts=explode('/',$path);
+   if(str_starts_with($path,'/')||str_contains($path,'\\')||preg_match('/^[a-z]:/i',$path)||in_array('..',$parts,true)||in_array('.',$parts,true))continue;
+   $items[]=['path'=>$path,'size'=>$st['size'],'dir'=>str_ends_with($path,'/')];
+  }
+  header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');
+  if($entry===null){$zip->close();out(['entries'=>$items]);}
+  $selected=null;foreach($items as $item)if($item['path']===$entry&&!$item['dir']){$selected=$item;break;}
+  if(!$selected)err(404,'Fichier absent de cette archive.');
+  if($selected['size']>104857600||(!$download&&$selected['size']>4194304))err(413,'Entrée trop volumineuse pour cette opération.');
+  $bytes=$zip->getFromName($entry);
+  if($bytes===false)err(400,'Entrée ZIP illisible.');
+  $zip->close();
+  header('Content-Type: application/octet-stream');
+  if($download)header("Content-Disposition: attachment; filename*=UTF-8''".rawurlencode(basename($entry)));
+  echo $bytes;exit;
+ }finally{if(is_file($tmp))unlink($tmp);}
+}
 function share(string $token):never {
  $r=one('SELECT sl.editor_only,n.name,n.mime,n.content FROM share_links sl JOIN nodes n ON n.id=sl.node_id WHERE sl.token=? AND sl.enabled=1',[$token]);
  if(!$r){http_response_code(404);exit('Lien invalide ou désactivé.');}
@@ -115,6 +143,11 @@ function share(string $token):never {
 if(strlen((string)c('JWT_SECRET',''))<32 || str_contains((string)c('JWT_SECRET',''),'REMPLACEZ'))err(503,'Définissez une clé JWT_SECRET longue et privée dans config.php.');
 try{init();}catch(Throwable $e){error_log($e->getMessage());err(500,'Connexion MySQL impossible : vérifiez config.php et les droits de la base.');}
 $method=$_SERVER['REQUEST_METHOD']??'GET';if($method==='POST'&&isset($_GET['_method'])&&in_array(strtoupper((string)$_GET['_method']),['PUT','DELETE'],true))$method=strtoupper((string)$_GET['_method']);$uri=parse_url($_SERVER['REQUEST_URI']??'/',PHP_URL_PATH)?:'/';$base=rtrim(str_replace('\\','/',dirname($_SERVER['SCRIPT_NAME']??'/index.php')),'/');if($base&&$base!=='/'&&str_starts_with($uri,$base.'/'))$uri=substr($uri,strlen($base));$uri=rawurldecode($uri);$b=input();
+if($method==='GET'&&preg_match('~^/s/([a-f0-9]{64})/zip-preview$~',$uri,$m)){
+ $r=one("SELECT n.name,n.content FROM share_links sl JOIN nodes n ON n.id=sl.node_id WHERE sl.token=? AND sl.enabled=1 AND n.type='file'",[$m[1]]);
+ if(!$r||strtolower(pathinfo($r['name'],PATHINFO_EXTENSION))!=='zip')err(404,'Archive inaccessible.');
+ zipPreview($r['content']??'',isset($_GET['entry'])?(string)$_GET['entry']:null,($_GET['download']??'')==='1');
+}
 if($method==='GET'&&preg_match('~^/s/([a-f0-9]{64})/download$~',$uri,$m)){
  $r=one("SELECT n.name,n.content FROM share_links sl JOIN nodes n ON n.id=sl.node_id WHERE sl.token=? AND sl.enabled=1 AND n.type='file'",[$m[1]]);
  if(!$r)err(404,'Lien de partage invalide ou désactivé.');
@@ -128,6 +161,12 @@ if($method==='GET'&&preg_match('~^/s/([a-f0-9]{64})$~',$uri,$m))share($m[1]);
 if($uri==='/api/login'&&$method==='POST'){$u=one('SELECT * FROM users WHERE username=?',[(string)($b['username']??'')]);if(!$u||!password_verify((string)($b['password']??''),$u['password_hash']))err(401,'Identifiant ou mot de passe incorrect.');out(['token'=>jwt((int)$u['id'])]);}
  if(preg_match('~^/api/public-share/([a-f0-9]{64})$~',$uri,$m)){if($method==='GET'){$r=one('SELECT sl.editor_only,n.name,n.mime,n.content FROM share_links sl JOIN nodes n ON n.id=sl.node_id WHERE sl.token=? AND sl.enabled=1',[$m[1]]);if(!$r)err(404,'Lien introuvable ou désactivé.');header('Cache-Control: no-store');out(['name'=>$r['name'],'mime'=>$r['mime']?:'text/plain','content'=>utf8Text($r['content']??''),'editor_only'=>(bool)$r['editor_only']]);}if($method==='PUT'){$r=one('SELECT n.id FROM share_links sl JOIN nodes n ON n.id=sl.node_id WHERE sl.token=? AND sl.enabled=1 AND sl.editor_only=1',[$m[1]]);if(!$r)err(403,'Ce lien ne permet pas la modification.');$v=$b['content']??null;if(!is_string($v)||strlen($v)>(int)c('MAX_UPLOAD_BYTES',104857600))err(400,'Contenu invalide ou trop volumineux.');q('UPDATE nodes SET content=?,size=? WHERE id=?',[$v,strlen($v),$r['id']]);out(['ok'=>true]);}}
 
+if($method==='GET'&&preg_match('~^/api/nodes/(\\d+)/zip-preview$~',$uri,$m)){
+ $u=user();$c=ctx($u);$id=(int)$m[1];$n=$c['by'][$id]??null;
+ if(!$n||$n['type']!=='file'||!can($c,$id,'v')||strtolower(pathinfo($n['name'],PATHINFO_EXTENSION))!=='zip')err(404,'Archive inaccessible.');
+ $r=one('SELECT content FROM nodes WHERE id=?',[$id]);
+ zipPreview($r['content']??'',isset($_GET['entry'])?(string)$_GET['entry']:null,($_GET['download']??'')==='1');
+}
 if(str_starts_with($uri,'/api/')){
  $u=user();
  if($uri==='/api/me'&&$method==='GET')out($u);
