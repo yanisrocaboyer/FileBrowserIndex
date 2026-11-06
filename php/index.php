@@ -70,7 +70,47 @@ function addNode(int $uid,?int $parent,string $name,string $type,string $data=''
 function copyNode(array $c,int $id,int $uid,?int $parent,string $name,?int $owner):int{$n=one('SELECT type,content FROM nodes WHERE id=?',[$id]);$new=addNode($uid,$parent,$name,$n['type'],$n['content']??'',$owner);if($n['type']==='folder')foreach($c['kids'][$id]??[] as $k)if(can($c,$k,'v'))copyNode($c,$k,$uid,$new,$c['by'][$k]['name'],$owner);return $new;}
 function zipAdd(array $c,int $id,ZipArchive $z,string $prefix=''):void{$n=$c['by'][$id];if($n['type']==='file'){$r=one('SELECT content FROM nodes WHERE id=?',[$id]);$z->addFromString($prefix.$n['name'],$r['content']??'');}else{$z->addEmptyDir($prefix.$n['name']);foreach($c['kids'][$id]??[] as $k)if(can($c,$k,'v'))zipAdd($c,$k,$z,$prefix.$n['name'].'/');}}
 function target(array $u,int $id):array{$t=one('SELECT id,role FROM users WHERE id=?',[$id]);if(!$t)err(404,'Compte introuvable.');if($t['role']==='root'||(int)$t['id']===(int)$u['id']||($u['role']!=='root'&&$t['role']!=='user'))err(403,'Action non autorisée sur ce compte.');return $t;}
-function share(string $token):never{$r=one('SELECT sl.editor_only,n.name,n.mime,n.content FROM share_links sl JOIN nodes n ON n.id=sl.node_id WHERE sl.token=? AND sl.enabled=1',[$token]);if(!$r){http_response_code(404);exit('Lien invalide ou désactivé.');}$name=htmlspecialchars($r['name'],ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');$data=$r['content']??'';$mime=$r['mime']?:'text/plain';$e=htmlspecialchars($data,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');header("Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https:; frame-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");header('Cache-Control: no-store');header('Content-Type: text/html; charset=utf-8');if(str_starts_with($mime,'image/'))$preview='<img style="max-width:100%;max-height:80vh" src="data:'.htmlspecialchars($mime).';base64,'.base64_encode($data).'">';elseif($mime==='application/pdf')$preview='<iframe style="width:100%;height:80vh" sandbox src="data:application/pdf;base64,'.base64_encode($data).'"></iframe>';elseif(in_array(strtolower(pathinfo($r['name'],PATHINFO_EXTENSION)),['html','htm']))$preview='<iframe style="width:100%;height:80vh" sandbox srcdoc="'.$e.'"></iframe>';else { $ext=strtolower(pathinfo($r['name'],PATHINFO_EXTENSION)); if(str_starts_with($mime,'text/')||in_array($ext,['txt','md','json','css','js','ts','py','xml','csv','log','yml','yaml','sh','c','cpp','cs'],true))$preview='<pre style="white-space:pre-wrap;overflow-wrap:anywhere;background:#1b2630;padding:20px;border-radius:10px">'.$e.'</pre>';else $preview='<div style="background:#1b2630;border:1px dashed #40505e;padding:32px;border-radius:10px;text-align:center;color:#b9c5d0">Aucun aperçu disponible pour ce format. Vous pouvez télécharger le fichier.</div>';}$editor=$r['editor_only']?'<textarea id="edit" style="width:100%;height:180px">'.$e.'</textarea><button id="save">Enregistrer</button><span id="status"></span><script>save.onclick=async()=>{let r=await fetch("/api/public-share/'.$token.'",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({content:edit.value})});status.textContent=r.ok?"Enregistré.":"Erreur";}</script>':'';$download='<a href="'.htmlspecialchars((rtrim(str_replace('\\','/',dirname($_SERVER['SCRIPT_NAME']??'/index.php')),'/')?:'').'/s/'.$token.'/download',ENT_QUOTES).'" download="'.$name.'" style="display:inline-block;padding:11px 18px;background:#367cf5;color:#fff;border-radius:9px;text-decoration:none;font-weight:600;margin-bottom:18px">↓ Télécharger le fichier</a>';echo '<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.$name.'</title><body style="background:#111a22;color:#e6edf3;font:15px system-ui;padding:28px"><main style="max-width:1000px;margin:auto"><h1>'.$name.'</h1>'.$download.'<div>'.$preview.'</div>'.$editor.'</main></body></html>';exit;}
+function share(string $token):never {
+ $r=one('SELECT sl.editor_only,n.name,n.mime,n.content FROM share_links sl JOIN nodes n ON n.id=sl.node_id WHERE sl.token=? AND sl.enabled=1',[$token]);
+ if(!$r){http_response_code(404);exit('Lien invalide ou désactivé.');}
+ $name=htmlspecialchars($r['name'],ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
+ $raw=$r['content']??'';
+ $source=htmlspecialchars($raw,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
+ $mime=$r['mime']?:'application/octet-stream';
+ $ext=strtolower(pathinfo($r['name'],PATHINFO_EXTENSION));
+ $html=in_array($ext,['html','htm'],true)||$mime==='text/html';
+ $md=in_array($ext,['md','markdown'],true)||$mime==='text/markdown';
+ $code=!$html&&!$md&&(str_starts_with($mime,'text/')||in_array($ext,['txt','json','css','js','ts','py','java','c','cpp','cs','sh','yml','yaml','xml','csv','log'],true));
+ $mode=$html?'html':($md?'markdown':($code?'code':'other'));
+ $lang=$html?'html':($md?'markdown':$ext);
+ $base=rtrim(str_replace('\\','/',dirname($_SERVER['SCRIPT_NAME']??'/index.php')),'/');
+ if($base==='/')$base='';
+ $prefix=htmlspecialchars($base,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
+ $download=$prefix.'/s/'.$token.'/download';
+ $preview='';
+ if($html)$preview='<iframe class="share-html-frame" title="Aperçu HTML" sandbox=""></iframe>';
+ elseif($md)$preview='<article class="share-markdown share-rendered-markdown"></article>';
+ elseif($code)$preview='<pre><code class="share-code" data-lang="'.htmlspecialchars($lang,ENT_QUOTES).'"></code></pre>';
+ elseif(str_starts_with($mime,'image/')&&in_array($mime,['image/png','image/jpeg','image/gif','image/webp','image/bmp','image/x-icon'],true))$preview='<img class="share-media" alt="'.$name.'" src="data:'.htmlspecialchars($mime,ENT_QUOTES).';base64,'.base64_encode($raw).'">';
+ elseif($mime==='application/pdf')$preview='<iframe class="share-pdf-frame" title="'.$name.'" sandbox src="data:application/pdf;base64,'.base64_encode($raw).'"></iframe>';
+ else $preview='<div class="share-no-preview">Aucun aperçu disponible pour ce format. Vous pouvez télécharger le fichier.</div>';
+ $showSource=$html||$md;
+ $editable=(bool)$r['editor_only']&&($html||$md||$code);
+ header("Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src data: blob: https:; frame-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+ header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');header('Content-Type: text/html; charset=utf-8');
+ echo '<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.$name.'</title><link rel="stylesheet" href="'.$prefix.'/share-view.css"></head><body>';
+ echo '<main class="share-page" data-share-view data-mode="'.$mode.'" data-lang="'.htmlspecialchars($lang,ENT_QUOTES).'" data-token="'.$token.'" data-base="'.$prefix.'">';
+ echo '<header class="share-header"><div><h1>'.$name.'</h1><span class="share-muted">'.($r['editor_only']?'Lien éditeur':'Partage en lecture seule').'</span></div><div class="share-actions">';
+ if($showSource)echo '<button class="share-button" id="share-source-toggle" aria-expanded="false">Afficher le code source</button>';
+ echo '<a class="share-button share-button-primary" href="'.$download.'" download="'.$name.'">↓ Télécharger</a></div></header>';
+ echo '<section class="share-card"><h2>Aperçu</h2><div id="share-preview" class="share-preview">'.$preview.'</div></section>';
+ if($showSource)echo '<section id="share-source-panel" class="share-card share-source-panel" hidden><h2>Code source</h2><pre><code id="share-source-code" class="share-source-code"></code></pre></section>';
+ if($editable)echo '<section class="share-card"><h2>Modifier le fichier</h2><textarea id="edit-content" class="share-editor" spellcheck="false">'.$source.'</textarea><div class="share-editor-actions"><button class="share-button share-button-primary" id="save">Enregistrer</button><span id="status" role="status" class="share-muted"></span></div></section>';
+ echo '<textarea id="share-source" hidden>'.$source.'</textarea></main>';
+ if($md)echo '<script src="'.$prefix.'/vendor/marked.js" defer></script>';
+ echo '<script src="'.$prefix.'/share-view.js" defer></script></body></html>';
+ exit;
+}
 
 if(strlen((string)c('JWT_SECRET',''))<32 || str_contains((string)c('JWT_SECRET',''),'REMPLACEZ'))err(503,'Définissez une clé JWT_SECRET longue et privée dans config.php.');
 try{init();}catch(Throwable $e){error_log($e->getMessage());err(500,'Connexion MySQL impossible : vérifiez config.php et les droits de la base.');}
