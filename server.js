@@ -635,6 +635,15 @@ app.put('/api/public-share/:token', w(async (q, s) => {
   await pool.query('UPDATE nodes SET content=?,size=? WHERE id=?', [b, b.length, r.node_id]);
   s.json({ ok: true });
 }));
+app.get('/s/:token/download', w(async (q, s) => {
+  const [[r]] = await pool.query(
+    'SELECT n.name,n.content FROM share_links sl JOIN nodes n ON n.id=sl.node_id WHERE sl.token=? AND sl.enabled=1 AND n.type=?',
+    [q.params.token,'file']
+  );
+  if (!r) return s.status(404).json({error:'Lien de partage invalide ou désactivé.'});
+  s.set('Cache-Control','no-store').set('X-Content-Type-Options','nosniff')
+   .attachment(r.name).type('application/octet-stream').send(r.content || Buffer.alloc(0));
+}));
 app.get('/s/:token', w(async (q, s) => {
   const [[r]] = await pool.query(
     `SELECT sl.editor_only,n.name,n.mime,n.content
@@ -671,17 +680,20 @@ app.get('/s/:token', w(async (q, s) => {
   } else if (ext === 'json' || mime === 'application/json') {
     let formatted = textContent; try { formatted = JSON.stringify(JSON.parse(textContent), null, 2); } catch {}
     preview = `<pre class="code">${escHtml(formatted)}</pre>`;
-  } else {
+  } else if (mime.startsWith('text/') || ['txt','css','js','ts','py','java','c','cpp','cs','sh','yml','yaml','xml','csv','log'].includes(ext)) {
     preview = `<pre class="code">${escHtml(textContent)}</pre>`;
+  } else {
+    preview = '<div class="no-preview">Aucun aperçu disponible pour ce type de fichier. Vous pouvez le télécharger.</div>';
   }
+  const downloadLink = `<a class="download" href="/s/${q.params.token}/download" download="${escHtml(name)}">↓ Télécharger le fichier</a>`;
   const editorBox = editor ? `<section class="editor"><label for="edit-content">Modifier le fichier partagé</label><textarea id="edit-content">${escHtml(textContent)}</textarea><button id="save">Enregistrer</button><span id="status" role="status"></span></section>` : '';
   const script = editor ? `document.getElementById('save').addEventListener('click',async()=>{const b=document.getElementById('save'),st=document.getElementById('status');b.disabled=true;st.textContent='Enregistrement…';try{const r=await fetch('/api/public-share/${q.params.token}',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:document.getElementById('edit-content').value})});const d=await r.json();if(!r.ok)throw Error(d.error||'Erreur');st.textContent='Enregistré. Rechargez l’aperçu pour voir les changements.';}catch(e){st.textContent=e.message;}finally{b.disabled=false;}});` : '';
   const mdScript = (ext === 'md' || ext === 'markdown' || mime === 'text/markdown') ? `const src=document.getElementById('source').value;const article=document.getElementById('markdown');if(window.marked){article.innerHTML=marked.parse(src);article.querySelectorAll('script,iframe,object,embed,link,meta,base').forEach(x=>x.remove());article.querySelectorAll('*').forEach(x=>[...x.attributes].forEach(a=>{if(/^on/i.test(a.name)||(/^(href|src)$/i.test(a.name)&&/^\s*javascript:/i.test(a.value)))x.removeAttribute(a.name)}));}else article.textContent=src;` : '';
   s.set('Content-Security-Policy', `default-src 'none'; script-src 'nonce-${nonce}' 'self'; style-src 'unsafe-inline'; img-src data: blob: https:; frame-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`)
    .set('X-Content-Type-Options','nosniff').set('Cache-Control','no-store').type('html')
    .send(`<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escHtml(name)}</title>
-   <style>body{margin:0;padding:28px;background:#111a22;color:#e6edf3;font:15px/1.65 system-ui}main{max-width:1000px;margin:auto}h1{font-size:20px}.preview{margin-top:18px}.media{display:block;max-width:100%;max-height:80vh;margin:auto;object-fit:contain}.pdf,.html{width:100%;height:78vh;border:0;background:white;border-radius:8px}.code,.markdown{white-space:pre-wrap;overflow-wrap:anywhere;background:#1b2630;color:#e6edf3;padding:22px;border-radius:9px}.markdown{white-space:normal}.markdown img{max-width:100%}.markdown pre{overflow:auto;background:#101820;padding:14px}.editor{margin-top:20px;padding:16px;background:#1b2630;border-radius:9px}.editor textarea{box-sizing:border-box;width:100%;min-height:180px;background:#101820;color:#e6edf3;padding:12px;border:1px solid #40505e;border-radius:7px;font:13px/1.5 monospace}.editor button{margin:10px 10px 0 0;padding:9px 15px;background:#367cf5;color:white;border:0;border-radius:7px}.muted{color:#9aa8b5}</style>
-   <main><h1>${escHtml(name)}</h1><div class="preview">${preview}</div>${editorBox}<p class="muted">${editor?'Lien éditeur':'Partage en lecture seule'}</p></main>
+   <style>body{margin:0;padding:28px;background:#111a22;color:#e6edf3;font:15px/1.65 system-ui}main{max-width:1000px;margin:auto}h1{font-size:20px}.preview{margin-top:18px}.media{display:block;max-width:100%;max-height:80vh;margin:auto;object-fit:contain}.pdf,.html{width:100%;height:78vh;border:0;background:white;border-radius:8px}.code,.markdown{white-space:pre-wrap;overflow-wrap:anywhere;background:#1b2630;color:#e6edf3;padding:22px;border-radius:9px}.markdown{white-space:normal}.markdown img{max-width:100%}.markdown pre{overflow:auto;background:#101820;padding:14px}.editor{margin-top:20px;padding:16px;background:#1b2630;border-radius:9px}.editor textarea{box-sizing:border-box;width:100%;min-height:180px;background:#101820;color:#e6edf3;padding:12px;border:1px solid #40505e;border-radius:7px;font:13px/1.5 monospace}.editor button{margin:10px 10px 0 0;padding:9px 15px;background:#367cf5;color:white;border:0;border-radius:7px}.muted{color:#9aa8b5}.download{display:inline-flex;align-items:center;padding:10px 17px;background:#367cf5;color:white;border-radius:9px;text-decoration:none;font-weight:600}.download:hover{background:#2565d3}.no-preview{padding:34px 20px;background:#1b2630;border:1px dashed #40505e;border-radius:10px;color:#b9c5d0;text-align:center}</style>
+   <main><h1>${escHtml(name)}</h1>${downloadLink}<div class="preview">${preview}</div>${editorBox}<p class="muted">${editor?'Lien éditeur':'Partage en lecture seule'}</p></main>
    ${ext==='md'||ext==='markdown'||mime==='text/markdown'?'<script src="/vendor/marked.js"><\/script>':''}<script nonce="${nonce}">${mdScript}${script}</script></html>`);
 }));
 
