@@ -52,13 +52,14 @@ function markdownFallback(source){
  return out.join('\n');
 }
 function safeMarkdown(html){
- const doc=new DOMParser().parseFromString('<div>'+html+'</div>','text/html');
+ const doc=new DOMParser().parseFromString('<div id="fbi-markdown-root">'+html+'</div>','text/html');
  const allowed=new Set('p br h1 h2 h3 h4 h5 h6 strong b em i del s u blockquote pre code ul ol li a img hr table thead tbody tr th td details summary input'.split(' '));
  const walk=doc.createTreeWalker(doc.body,NodeFilter.SHOW_ELEMENT);
  const nodes=[];while(walk.nextNode())nodes.push(walk.currentNode);
  for(const el of nodes){
   if(!el.isConnected)continue;
   const tag=el.localName;
+  if(el.id==='fbi-markdown-root')continue;
   if(!allowed.has(tag)){el.remove();continue;}
   for(const a of [...el.attributes]){
    if(!['href','src','alt','title','class','type','checked','disabled'].includes(a.name))el.removeAttribute(a.name);
